@@ -3,7 +3,7 @@ import { AudioEngine } from '../../audio/AudioEngine';
 import { usePlayerStore } from '../../store/usePlayerStore';
 
 const SOLAR_FRAMING = {
-  topLeft: 'HELIOCENTRIC // SOL-SYSTEM ORRERY',
+  topLeft: '',
   topRight: 'KEPLER T^2 ∝ a^3 // RESONANCE',
   bottomLeft: 'CASSINI DIVISION // SATURN RINGS',
   bottomRight: 'KIRKWOOD GAPS // ASTEROID BELT',
@@ -59,7 +59,7 @@ export const SwissBrutalistFraming: React.FC = () => {
         {/* Top-Left */}
         <div className="absolute top-16 left-6 flex items-center gap-1.5 text-neutral-500 text-[10px] tracking-widest">
           <span className="text-white text-xs font-bold">+</span>
-          <span>{SOLAR_FRAMING.topLeft}</span>
+          {SOLAR_FRAMING.topLeft && <span>{SOLAR_FRAMING.topLeft}</span>}
         </div>
 
         {/* Top-Right */}

@@ -1,11 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   Activity,
-  Radio,
   Camera,
   Layers,
   Eye,
-  Rocket,
   Crosshair,
   FolderOpen,
   Orbit,
@@ -43,13 +41,10 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
   const cameraMode = usePlayerStore(state => state.cameraMode);
   const setCameraMode = usePlayerStore(state => state.setCameraMode);
   const activeTab = usePlayerStore(state => state.activeTab);
-  const setActiveTab = usePlayerStore(state => state.setActiveTab);
   const selectedPlanet = usePlayerStore(state => state.selectedPlanet);
   const setSelectedPlanet = usePlayerStore(state => state.setSelectedPlanet);
   const visibleLayers = usePlayerStore(state => state.visibleLayers);
   const toggleLayer = usePlayerStore(state => state.toggleLayer);
-  const isDemoSynth = usePlayerStore(state => state.isDemoSynth);
-  const toggleDemoSynth = usePlayerStore(state => state.toggleDemoSynth);
   const trackCount = usePlayerStore(state => state.tracks.length);
 
   // Direct DOM Refs for 60FPS telemetry (ZERO React re-renders)
@@ -142,14 +137,9 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
           {/* Logo Identity */}
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-white/90 shadow-[0_0_4px_#ffffff]" />
-            <div>
-              <div className="font-mono font-bold tracking-widest text-xs text-white">
-                CYBERPULSE <span className="text-neutral-500 font-normal">/ 01</span>
-              </div>
-              <div className="text-[8.5px] font-mono tracking-wider text-neutral-400 uppercase hidden lg:block">
-                KEPLER ORRERY // DE440
-              </div>
-            </div>
+            <span className="font-mono font-bold tracking-widest text-xs text-white">
+              CYBERPULSE
+            </span>
           </div>
 
           <div className="h-4 w-px bg-white/10 hidden sm:block" />
@@ -215,30 +205,10 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
           </div>
         </div>
 
-        {/* Center Section: Subdued Chiaroscuro Tab Switcher (Zero White Glare) */}
-        <div className="flex items-center gap-1 p-0.5 rounded bg-[#0a0a0e] border border-white/10 select-none">
-          <button
-            onClick={() => setActiveTab('system')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-mono tracking-wider transition-all cursor-pointer ${
-              activeTab === 'system'
-                ? 'bg-white/15 text-white font-bold border border-white/25 shadow-none'
-                : 'text-neutral-500 hover:text-neutral-300'
-            }`}
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'system' ? 'bg-white shadow-[0_0_4px_#ffffff]' : 'bg-neutral-600'}`} />
-            <span>HỆ MẶT TRỜI</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('hangar')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-mono tracking-wider transition-all cursor-pointer ${
-              activeTab === 'hangar'
-                ? 'bg-white/15 text-white font-bold border border-white/25 shadow-none'
-                : 'text-neutral-500 hover:text-neutral-300'
-            }`}
-          >
-            <Rocket className="w-3.5 h-3.5 text-neutral-400" />
-            <span>3D HANGAR</span>
-          </button>
+        {/* Center Section: Minimal Clean Title (Zero Glare, Clean English) */}
+        <div className="flex items-center gap-2 px-3 py-1 text-xs font-mono tracking-widest text-neutral-300 font-semibold uppercase">
+          <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_4px_#ffffff]" />
+          <span>SOLAR SYSTEM</span>
         </div>
 
         {/* Right Section: Compact Controls & Celestial Popover */}
@@ -319,26 +289,6 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
             </div>
           )}
 
-          {/* DEMO SYNTH TOGGLE */}
-          <button
-            onClick={toggleDemoSynth}
-            title="Toggle 128 BPM Procedural Synthwave Demo"
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium tracking-wider uppercase border transition-colors cursor-pointer ${
-              isDemoSynth
-                ? 'bg-white/20 text-white border-white/40'
-                : 'bg-[#101014] text-neutral-300 border-white/15 hover:border-white/30 hover:text-white'
-            }`}
-          >
-            <Radio className={`w-3 h-3 ${isDemoSynth ? 'animate-pulse text-white' : 'text-neutral-400'}`} />
-            <span className="hidden xl:inline">SYNTH DEMO</span>
-            <span
-              className={`text-[9px] px-1 rounded-sm font-bold ${
-                isDemoSynth ? 'bg-white/20 text-white' : 'bg-[#1c1c1c] text-neutral-400'
-              }`}
-            >
-              {isDemoSynth ? 'ON' : 'OFF'}
-            </span>
-          </button>
 
           {/* 3-Mode Camera Selector */}
           <button
