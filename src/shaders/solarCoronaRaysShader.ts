@@ -66,9 +66,9 @@ export const solarCoronaRaysFragmentShader = /* glsl */ `
     float coronaFalloff = pow(max(0.0, 1.0 - r), 2.4) / (r * 1.8 + 0.05);
 
     // 5. Dual-Layer Audio Pulsation:
-    // When beat kick hits: explosive transient punch (uBass * 0.4 + uBeatIntensity * 0.8)
+    // When beat kick hits: explosive transient punch (low bass baseline + powerful kick pop)
     // When in melodic intro/verse (no kick): warm breathing according to vocal melody and piano chords!
-    float kickFlare = uBass * 0.40 + uBeatIntensity * 0.85;
+    float kickFlare = uBass * 0.12 + pow(uBeatIntensity, 1.25) * 0.95;
     float kickMask = smoothstep(0.12, 0.60, uBeatIntensity);
     float melodicBreath = (uMid * 0.48 + uAcousticEnergy * 0.32) * (1.0 - kickMask);
     float flare = kickFlare + melodicBreath;

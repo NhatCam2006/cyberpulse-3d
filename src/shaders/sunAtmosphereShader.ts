@@ -179,7 +179,7 @@ export const sunAtmosphereFragmentShader = /* glsl */ `
 
     // Audio responsiveness: Solar flare expansion on heavy kick + subtle melodic glint on piano/vocals
     float melodicGlint = (1.0 - smoothstep(0.15, 0.60, uBeatIntensity)) * (uMid * 0.12);
-    float flare = (uBass * 0.18 + uBeatIntensity * 0.32) + melodicGlint;
+    float flare = (uBass * 0.10 + pow(uBeatIntensity, 1.30) * 0.45) + melodicGlint;
     float finalLuminance = (surface + spicules) * (1.0 + flare);
 
     // Output HDR luminance directly into ACES Filmic tonemapper

@@ -575,9 +575,12 @@ export const SolarSystemCore = () => {
       sunShaderMat.uniforms.uMid.value = mid;
       sunShaderMat.uniforms.uBeatIntensity.value = beatIntensity;
 
-      // Astrophysical Sun Breathing: Subtle, dense, gravitational pulsation (max +6% to +8%)
-      // Prevents rubber-balloon swelling while preserving deep-space monolithic presence
-      const sunScale = 1.0 + bass * 0.035 + beatIntensity * 0.050;
+      // Punchy, snappy transient kick dynamics:
+      // Uses pow(beatIntensity, 1.35) * 0.16 to create a crisp, highly visible +16% pop on drum kicks
+      // with low bass rumble (+3.5%) so continuous music NEVER stays bloated or flat
+      const punch = Math.pow(beatIntensity, 1.35) * 0.16;
+      const subRumble = bass * 0.035;
+      const sunScale = 1.0 + subRumble + punch;
       sunMeshRef.current.scale.set(sunScale, sunScale, sunScale);
       sunMeshRef.current.rotation.y += delta * 0.08;
     }
