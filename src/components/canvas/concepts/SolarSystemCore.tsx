@@ -579,18 +579,18 @@ export const SolarSystemCore = () => {
       // Punchy, snappy transient kick dynamics:
       // Uses pow(beatIntensity, 1.35) * 0.16 to create a crisp, highly visible +16% pop on drum kicks
       // with low bass rumble (+3.5%) so continuous music NEVER stays bloated or flat
-      const kickPunch = Math.pow(beatIntensity, 1.30) * 0.22;
+      const kickPunch = Math.pow(beatIntensity, 1.30) * 0.16;
       const isKickActive = Math.min(1.0, beatIntensity * 2.0);
-      const melodicBreath = (1.0 - isKickActive) * (mid * 0.12 + acousticEnergy * 0.09 + Math.sin(time * 2.8) * mid * 0.04);
+      const melodicBreath = (1.0 - isKickActive) * (mid * 0.08 + acousticEnergy * 0.06 + Math.sin(time * 2.4) * mid * 0.025);
       const punch = kickPunch + melodicBreath;
-      const subRumble = bass * 0.04;
+      const subRumble = bass * 0.025;
       const sunScale = 1.0 + subRumble + punch;
       sunMeshRef.current.scale.set(sunScale, sunScale, sunScale);
-      sunMeshRef.current.rotation.y += delta * (0.07 + mid * 0.12 + bass * 0.06);
+      sunMeshRef.current.rotation.y += delta * (0.07 + mid * 0.08 + bass * 0.04);
 
       // Dynamically pulse heliocentric starlight illumination across the solar system
       if (pointLightRef.current) {
-        pointLightRef.current.intensity = 4.2 + punch * 4.2 + (mid * 2.2 + acousticEnergy * 1.6);
+        pointLightRef.current.intensity = 3.2 + punch * 0.8;
       }
     }
 
@@ -924,7 +924,7 @@ export const SolarSystemCore = () => {
       <InterstellarBolide />
 
       {/* Solar Heliocentric Point Light for Real-time Day/Night Planetary Terminator */}
-      <pointLight ref={pointLightRef} position={[0, 0, 0]} intensity={4.5} distance={42} decay={1.0} color="#ffffff" />
+      <pointLight ref={pointLightRef} position={[0, 0, 0]} intensity={3.2} distance={42} decay={1.0} color="#ffffff" />
 
       {/* 2. CORONAL MASS EJECTION (CME) 2D RELATIVISTIC PLANAR BLAST SHOCKWAVE IN ECLIPTIC */}
       <group ref={cmeGroupRef}>

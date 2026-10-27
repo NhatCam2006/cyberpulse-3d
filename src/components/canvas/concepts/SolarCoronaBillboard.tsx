@@ -45,14 +45,12 @@ export const SolarCoronaBillboard = () => {
     material.uniforms.uAcousticEnergy.value = acousticEnergy;
     material.uniforms.uBeatIntensity.value = beatIntensity;
 
-    // Dual-layer astrophysical coronal breathing:
-    // 1. Snappy optical diffraction surge (+2.2 units / +35% on kicks)
-    const kickPunch = Math.pow(beatIntensity, 1.30) * 2.20;
-    // 2. Continuous melodic breathing during piano/ballad/intro (+1.4 units / +22% on mid/vocal frequencies)
+    // Dual-layer astrophysical coronal breathing (gentle, anti-glare, non-blinding):
+    const kickPunch = Math.pow(beatIntensity, 1.30) * 1.10;
     const isKick = Math.min(1.0, beatIntensity * 1.8);
-    const melodicBreath = (1.0 - isKick) * (mid * 1.40 + acousticEnergy * 1.10 + Math.sin(time * 2.6) * mid * 0.35);
-    const subRumble = bass * 0.40;
-    const s = 6.4 + kickPunch + melodicBreath + subRumble;
+    const melodicBreath = (1.0 - isKick) * (mid * 0.65 + acousticEnergy * 0.45 + Math.sin(time * 2.4) * mid * 0.15);
+    const subRumble = bass * 0.15;
+    const s = 5.6 + kickPunch + melodicBreath + subRumble;
     meshRef.current.scale.set(s, s, s);
   });
 

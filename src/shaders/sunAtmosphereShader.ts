@@ -151,8 +151,8 @@ export const sunAtmosphereFragmentShader = /* glsl */ `
     float plasmaSpeed = 0.04 + uMid * 0.10 + uBass * 0.06;
     float macroFlow = fbm(pNorm * 4.2 + vec3(uTime * plasmaSpeed));
 
-    // Core photosphere base emission (calibrated for high contrast & zero whiteout)
-    float basePhotosphere = 0.72 + granules * 0.26 + macroFlow * 0.16;
+    // Core photosphere base emission (calibrated for high contrast & zero glare)
+    float basePhotosphere = 0.62 + granules * 0.20 + macroFlow * 0.12;
 
     // 3. Active Sunspot Belts (Toroidal magnetic fields at lat +/- 12 to 32 deg)
     float sinLat = abs(pNorm.y);
@@ -174,16 +174,16 @@ export const sunAtmosphereFragmentShader = /* glsl */ `
     // Combine surface features
     float surface = (basePhotosphere - (umbra + penumbra) + faculae) * limbDarkening;
 
-    // 4. Extreme Grazing Chromospheric Spicule Crown (Audio-reactive plasma fringe)
+    // 4. Extreme Grazing Chromospheric Spicule Crown (Delicate starlight fringe, non-glaring)
     float grazingRim = 1.0 - mu;
-    float spicules = pow(grazingRim, 6.0) * (0.9 + snoise(vec3(vPosition.xy * 28.0, uTime * 1.6)) * 0.5);
+    float spicules = pow(grazingRim, 7.5) * (0.55 + snoise(vec3(vPosition.xy * 28.0, uTime * 1.2)) * 0.25);
 
-    // Audio responsiveness: Solar flare expansion on heavy kick + rich melodic glint on piano/vocals
-    float melodicGlint = (uMid * 0.70);
-    float kickPop = pow(uBeatIntensity, 1.30) * 0.65;
-    float flare = (uBass * 0.15 + kickPop) + melodicGlint;
-    // Core surface preserves contrast; rim spicules flash radiantly on beats and melody
-    float finalLuminance = surface * (1.0 + flare * 0.35) + spicules * (1.0 + flare * 1.7);
+    // Audio responsiveness: Gentle thermal glint on kicks & melody (zero eye-strain)
+    float melodicGlint = (uMid * 0.20);
+    float kickPop = pow(uBeatIntensity, 1.30) * 0.25;
+    float flare = (uBass * 0.08 + kickPop) + melodicGlint;
+    // Core surface preserves rich sunspot chiaroscuro; rim fringe remains soft and soothing
+    float finalLuminance = surface * (1.0 + flare * 0.15) + spicules * (1.0 + flare * 0.45);
 
     // Output HDR luminance directly into ACES Filmic tonemapper
     gl_FragColor = vec4(vec3(finalLuminance), 1.0);
