@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production build artifacts
+dist/
+dist-ssr/
+*.local
+
+# Editor directories
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Temporary test scripts & snapshots
+scratch/
+snapshots/
+capture_snapshot.cjs
+test_*.cjs
+verify_*.cjs
+
+# Large raw/uncompressed 3D models (app uses erizon_draco.glb 3.75MB + /draco/)
+public/models/programme_erizon_raw.glb
+public/models/erizon_standard.glb
+public/models/erizon_optimized.glb
+
+# System logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS metadata
+.DS_Store
+Thumbs.db
