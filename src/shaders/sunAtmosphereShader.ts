@@ -145,13 +145,14 @@ export const sunAtmosphereFragmentShader = /* glsl */ `
     float limbDarkening = 1.0 - u * (1.0 - mu);
     limbDarkening = pow(limbDarkening, 1.15);
 
-    // 2. Solar Granulation Convection Cells
+    // 2. Solar Granulation Convection Cells & Dynamic Audio Plasma Churn
     vec3 pNorm = normalize(vPosition);
     float granules = solarGranulation(pNorm);
-    float macroFlow = fbm(pNorm * 4.2 + vec3(uTime * 0.04));
+    float plasmaSpeed = 0.04 + uMid * 0.10 + uBass * 0.06;
+    float macroFlow = fbm(pNorm * 4.2 + vec3(uTime * plasmaSpeed));
 
-    // Core photosphere base emission
-    float basePhotosphere = 0.88 + granules * 0.22 + macroFlow * 0.12;
+    // Core photosphere base emission (calibrated for high contrast & zero whiteout)
+    float basePhotosphere = 0.72 + granules * 0.26 + macroFlow * 0.16;
 
     // 3. Active Sunspot Belts (Toroidal magnetic fields at lat +/- 12 to 32 deg)
     float sinLat = abs(pNorm.y);
@@ -173,14 +174,16 @@ export const sunAtmosphereFragmentShader = /* glsl */ `
     // Combine surface features
     float surface = (basePhotosphere - (umbra + penumbra) + faculae) * limbDarkening;
 
-    // 4. Extreme Grazing Chromospheric Spicule Fringe (only visible right at the outer rim mu < 0.08)
+    // 4. Extreme Grazing Chromospheric Spicule Crown (Audio-reactive plasma fringe)
     float grazingRim = 1.0 - mu;
-    float spicules = pow(grazingRim, 8.0) * (0.6 + snoise(vec3(vPosition.xy * 32.0, uTime * 0.9)) * 0.35);
+    float spicules = pow(grazingRim, 6.0) * (0.9 + snoise(vec3(vPosition.xy * 28.0, uTime * 1.6)) * 0.5);
 
-    // Audio responsiveness: Solar flare expansion on heavy kick + subtle melodic glint on piano/vocals
-    float melodicGlint = (1.0 - smoothstep(0.12, 0.50, uBeatIntensity)) * (uMid * 0.35);
-    float flare = (uBass * 0.10 + pow(uBeatIntensity, 1.30) * 0.45) + melodicGlint;
-    float finalLuminance = (surface + spicules) * (1.0 + flare);
+    // Audio responsiveness: Solar flare expansion on heavy kick + rich melodic glint on piano/vocals
+    float melodicGlint = (uMid * 0.70);
+    float kickPop = pow(uBeatIntensity, 1.30) * 0.65;
+    float flare = (uBass * 0.15 + kickPop) + melodicGlint;
+    // Core surface preserves contrast; rim spicules flash radiantly on beats and melody
+    float finalLuminance = surface * (1.0 + flare * 0.35) + spicules * (1.0 + flare * 1.7);
 
     // Output HDR luminance directly into ACES Filmic tonemapper
     gl_FragColor = vec4(vec3(finalLuminance), 1.0);

@@ -39,47 +39,53 @@ export const solarCoronaRaysFragmentShader = /* glsl */ `
     // Fade out at borders
     if (r > 1.0) discard;
 
-    // 1. Inner Photosphere Core Mask (the solar sphere sits in r < 0.25)
-    float innerCut = smoothstep(0.20, 0.28, r);
+    // 1. Inner Photosphere Core Mask (the solar sphere sits in r < 0.24)
+    float innerCut = smoothstep(0.18, 0.25, r);
 
-    // 2. Multi-Harmonic Coronal Streamer Rays (Parker solar wind streamers)
-    // Streamers gently twist and shimmer with melodic mid frequencies (piano/vocals)
-    float melodicRayTwist = uMid * 0.35;
-    float rays1 = sin((angle + melodicRayTwist) * 12.0 + uTime * 0.15) * 0.5 + 0.5;
-    float rays2 = sin((angle - melodicRayTwist * 0.5) * 28.0 - uTime * 0.25) * 0.5 + 0.5;
-    float rays3 = sin(angle * 64.0 + uTime * 0.40) * 0.5 + 0.5;
-    float streamers = pow(rays1 * 0.5 + rays2 * 0.3 + rays3 * 0.2, 2.5);
+    // 2. Dynamic Audio Reach: Coronal streamers stretch outward when music swells
+    float energyReach = 0.72 + pow(uBeatIntensity, 1.25) * 0.70 + (uMid * 0.60 + uAcousticEnergy * 0.45);
+    float rScaled = r / energyReach;
+
+    // Multi-Harmonic Coronal Streamer Rays (Parker solar wind streamers)
+    // Streamers twist and shimmer dynamically with melody (piano/vocals) and bass
+    float melodicRayTwist = uMid * 0.75 + uBass * 0.35;
+    float rays1 = sin((angle + melodicRayTwist) * 12.0 + uTime * 0.22) * 0.5 + 0.5;
+    float rays2 = sin((angle - melodicRayTwist * 0.6) * 28.0 - uTime * 0.32) * 0.5 + 0.5;
+    float rays3 = sin(angle * 64.0 + uTime * 0.55 + uMid * 1.5) * 0.5 + 0.5;
+    float streamers = pow(rays1 * 0.50 + rays2 * 0.30 + rays3 * 0.20, 2.2);
 
     // 3. Optical Diffraction Spikes (4-Point Cardinal Cross + 45-degree secondary cross)
-    // Primary cross (horizontal & vertical aperture diffraction)
-    float spikeH = 0.008 / (abs(p.y) + 0.008) * smoothstep(1.0, 0.05, abs(p.x));
-    float spikeV = 0.008 / (abs(p.x) + 0.008) * smoothstep(1.0, 0.05, abs(p.y));
+    // Spikes dynamically elongate and glint on beat kicks and melodic phrases
+    float spikePower = 0.90 + pow(uBeatIntensity, 1.25) * 1.10 + (uMid * 0.85 + uAcousticEnergy * 0.50);
+    float spikeWidth = 0.007 * (0.85 + uMid * 0.35);
+    float spikeH = spikeWidth / (abs(p.y) + spikeWidth) * smoothstep(1.0, 0.01, abs(p.x) / spikePower);
+    float spikeV = spikeWidth / (abs(p.x) + spikeWidth) * smoothstep(1.0, 0.01, abs(p.y) / spikePower);
     
     // 45-degree secondary diffraction cross
     vec2 rot45 = vec2(p.x * 0.7071 - p.y * 0.7071, p.x * 0.7071 + p.y * 0.7071);
-    float spikeD1 = 0.004 / (abs(rot45.y) + 0.008) * smoothstep(0.85, 0.08, abs(rot45.x));
-    float spikeD2 = 0.004 / (abs(rot45.x) + 0.008) * smoothstep(0.85, 0.08, abs(rot45.y));
+    float spikeD1 = (spikeWidth * 0.55) / (abs(rot45.y) + spikeWidth * 0.55) * smoothstep(0.90, 0.02, abs(rot45.x) / spikePower);
+    float spikeD2 = (spikeWidth * 0.55) / (abs(rot45.x) + spikeWidth * 0.55) * smoothstep(0.90, 0.02, abs(rot45.y) / spikePower);
 
-    float diffractionSpikes = (spikeH + spikeV) * 0.85 + (spikeD1 + spikeD2) * 0.45;
+    float diffractionSpikes = (spikeH + spikeV) * 0.90 + (spikeD1 + spikeD2) * 0.50;
 
-    // 4. Exponential Coronal Falloff (1 / r^2.2)
-    float coronaFalloff = pow(max(0.0, 1.0 - r), 2.4) / (r * 1.8 + 0.05);
+    // 4. Exponential Coronal Falloff with dynamic reaching
+    float coronaFalloff = pow(max(0.0, 1.0 - rScaled), 2.2) / (rScaled * 1.6 + 0.04);
 
     // 5. Dual-Layer Audio Pulsation:
-    // When beat kick hits: explosive transient punch (low bass baseline + powerful kick pop)
-    // When in melodic intro/verse (no kick): warm breathing according to vocal melody and piano chords!
-    float kickFlare = uBass * 0.12 + pow(uBeatIntensity, 1.25) * 0.95;
-    float kickMask = smoothstep(0.12, 0.60, uBeatIntensity);
-    float melodicBreath = (uMid * 0.48 + uAcousticEnergy * 0.32) * (1.0 - kickMask);
+    // Heavy kick: explosive transient pop (+120%)
+    // Melodic sections (ballad / piano / vocal): warm, visible organic breathing (+75%)
+    float kickFlare = uBass * 0.18 + pow(uBeatIntensity, 1.25) * 1.20;
+    float kickMask = smoothstep(0.12, 0.55, uBeatIntensity);
+    float melodicBreath = (uMid * 0.75 + uAcousticEnergy * 0.55) * (1.0 - kickMask * 0.5);
     float flare = kickFlare + melodicBreath;
 
-    float totalCorona = (coronaFalloff * (0.45 + streamers * 0.55) + diffractionSpikes * 0.35) * (1.0 + flare);
+    float totalCorona = (coronaFalloff * (0.40 + streamers * 0.60) + diffractionSpikes * 0.40) * (1.0 + flare);
 
     // Outer feathering with zero boundary derivative
-    float edgeMask = pow(clamp(1.0 - r, 0.0, 1.0), 2.2);
+    float edgeMask = pow(clamp(1.0 - r, 0.0, 1.0), 2.0);
     float finalAlpha = clamp(totalCorona * edgeMask * innerCut, 0.0, 1.0);
 
     // Pure monochrome laboratory HDR glow
-    gl_FragColor = vec4(vec3(1.0), finalAlpha * 0.78);
+    gl_FragColor = vec4(vec3(1.0), finalAlpha * 0.85);
   }
 `;

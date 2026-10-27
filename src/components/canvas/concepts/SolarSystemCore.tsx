@@ -52,7 +52,6 @@ import {
   auroralCurtainFragmentShader,
 } from '../../../shaders/auroralCurtainShader';
 import { SolarCoronaBillboard } from './SolarCoronaBillboard';
-import { CoronalMicroRipples } from './CoronalMicroRipples';
 import { InterstellarBolide } from './InterstellarBolide';
 import { KuiperRadarBoundary } from './KuiperRadarBoundary';
 import { OuterHeliosphericPulseRing } from './OuterHeliosphericPulseRing';
@@ -77,6 +76,7 @@ export const SolarSystemCore = () => {
   const saturnMoonsGroupRef = useRef<THREE.Group>(null);
   const saturnRingsRef = useRef<THREE.Mesh>(null);
   const asteroidPointsRef = useRef<THREE.Points>(null);
+  const pointLightRef = useRef<THREE.PointLight>(null);
 
   // 1. Solar Photosphere Shader (Eddington-Barbier Limb Darkening + Sunspots + Granulation)
   const sunShaderMat = useMemo(() => {
@@ -579,14 +579,19 @@ export const SolarSystemCore = () => {
       // Punchy, snappy transient kick dynamics:
       // Uses pow(beatIntensity, 1.35) * 0.16 to create a crisp, highly visible +16% pop on drum kicks
       // with low bass rumble (+3.5%) so continuous music NEVER stays bloated or flat
-      const kickPunch = Math.pow(beatIntensity, 1.35) * 0.16;
+      const kickPunch = Math.pow(beatIntensity, 1.30) * 0.22;
       const isKickActive = Math.min(1.0, beatIntensity * 2.0);
-      const melodicBreath = (1.0 - isKickActive) * (mid * 0.055 + acousticEnergy * 0.040 + Math.sin(time * 3.0) * mid * 0.015);
+      const melodicBreath = (1.0 - isKickActive) * (mid * 0.12 + acousticEnergy * 0.09 + Math.sin(time * 2.8) * mid * 0.04);
       const punch = kickPunch + melodicBreath;
-      const subRumble = bass * 0.035;
+      const subRumble = bass * 0.04;
       const sunScale = 1.0 + subRumble + punch;
       sunMeshRef.current.scale.set(sunScale, sunScale, sunScale);
-      sunMeshRef.current.rotation.y += delta * (0.07 + mid * 0.05);
+      sunMeshRef.current.rotation.y += delta * (0.07 + mid * 0.12 + bass * 0.06);
+
+      // Dynamically pulse heliocentric starlight illumination across the solar system
+      if (pointLightRef.current) {
+        pointLightRef.current.intensity = 4.2 + punch * 4.2 + (mid * 2.2 + acousticEnergy * 1.6);
+      }
     }
 
     // 2. Update All Planetary Shader Uniforms
@@ -914,13 +919,12 @@ export const SolarSystemCore = () => {
 
       {/* Astrophysical Solar Corona Optical Diffraction Rays & Halo */}
       <SolarCoronaBillboard />
-      <CoronalMicroRipples />
 
       {/* Hyperbolic Interstellar Bolide / Meteor (Ephemeral Gravitational Slingshot) */}
       <InterstellarBolide />
 
       {/* Solar Heliocentric Point Light for Real-time Day/Night Planetary Terminator */}
-      <pointLight position={[0, 0, 0]} intensity={4.5} distance={42} decay={1.0} color="#ffffff" />
+      <pointLight ref={pointLightRef} position={[0, 0, 0]} intensity={4.5} distance={42} decay={1.0} color="#ffffff" />
 
       {/* 2. CORONAL MASS EJECTION (CME) 2D RELATIVISTIC PLANAR BLAST SHOCKWAVE IN ECLIPTIC */}
       <group ref={cmeGroupRef}>
