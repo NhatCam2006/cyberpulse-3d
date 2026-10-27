@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   Activity,
   Camera,
-  Layers,
   Eye,
   Crosshair,
   FolderOpen,
@@ -35,7 +34,6 @@ const CELESTIAL_BODIES = [
 
 export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDrawerOpen }) => {
   const [fps, setFps] = useState<number>(60);
-  const [showLayerMenu, setShowLayerMenu] = useState<boolean>(false);
   const [showPlanetMenu, setShowPlanetMenu] = useState<boolean>(false);
 
   const cameraMode = usePlayerStore(state => state.cameraMode);
@@ -43,8 +41,6 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
   const activeTab = usePlayerStore(state => state.activeTab);
   const selectedPlanet = usePlayerStore(state => state.selectedPlanet);
   const setSelectedPlanet = usePlayerStore(state => state.setSelectedPlanet);
-  const visibleLayers = usePlayerStore(state => state.visibleLayers);
-  const toggleLayer = usePlayerStore(state => state.toggleLayer);
   const trackCount = usePlayerStore(state => state.tracks.length);
 
   // Direct DOM Refs for 60FPS telemetry (ZERO React re-renders)
@@ -320,42 +316,6 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
             </span>
           </button>
 
-          {/* Layer Menu Toggle */}
-          <div className="relative">
-            <button
-              onClick={() => setShowLayerMenu(!showLayerMenu)}
-              title="Toggle 3D Scene Layers"
-              className={`p-1.5 rounded border transition-colors cursor-pointer ${
-                showLayerMenu
-                  ? 'bg-white/20 text-white border-white/30'
-                  : 'bg-[#101014] text-neutral-400 border-white/15 hover:text-white'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-            </button>
-
-            {showLayerMenu && (
-              <div className="absolute right-0 mt-2 w-40 rounded bg-[#08080c] border border-white/20 shadow-2xl p-2 z-50 flex flex-col gap-1 font-mono text-xs">
-                <div className="text-[10px] text-neutral-500 px-2 py-1 uppercase tracking-wider font-semibold border-b border-white/10">
-                  Layers
-                </div>
-                {(['core', 'rings', 'particles'] as const).map((layer) => (
-                  <button
-                    key={layer}
-                    onClick={() => toggleLayer(layer)}
-                    className="flex items-center justify-between px-2 py-1 rounded hover:bg-[#141418] text-left transition-colors cursor-pointer"
-                  >
-                    <span className="capitalize text-neutral-300">{layer}</span>
-                    <Eye
-                      className={`w-3 h-3 ${
-                        visibleLayers[layer] ? 'text-white' : 'text-neutral-700'
-                      }`}
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* Track Drawer Button */}
           <button

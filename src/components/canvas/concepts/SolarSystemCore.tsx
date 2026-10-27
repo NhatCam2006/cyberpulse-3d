@@ -52,9 +52,7 @@ import {
   auroralCurtainFragmentShader,
 } from '../../../shaders/auroralCurtainShader';
 import { SolarCoronaBillboard } from './SolarCoronaBillboard';
-import { RelativisticGeodesicHorizon } from './RelativisticGeodesicHorizon';
 import { InterstellarBolide } from './InterstellarBolide';
-import { KeplerHarmonograph } from './KeplerHarmonograph';
 import { KuiperRadarBoundary } from './KuiperRadarBoundary';
 import { OuterHeliosphericPulseRing } from './OuterHeliosphericPulseRing';
 import { MilkyWayBackdrop } from './MilkyWayBackdrop';
@@ -63,7 +61,6 @@ import { usePlayerStore } from '../../../store/usePlayerStore';
 const NUM_ASTEROIDS = 850;
 
 export const SolarSystemCore = () => {
-  const visibleLayers = usePlayerStore(state => state.visibleLayers);
   const selectedPlanet = usePlayerStore(state => state.selectedPlanet);
   const auroraSpectralMode = usePlayerStore(state => state.auroraSpectralMode);
   const isPlaying = usePlayerStore(state => state.isPlaying);
@@ -909,14 +906,8 @@ export const SolarSystemCore = () => {
       {/* Astrophysical Solar Corona Optical Diffraction Rays & Halo */}
       <SolarCoronaBillboard />
 
-      {/* Relativistic Geodesic Oscilloscope Horizon (Ryoji Ikeda / Einstein General Relativity) */}
-      {visibleLayers.rings && <RelativisticGeodesicHorizon />}
-
       {/* Hyperbolic Interstellar Bolide / Meteor (Ephemeral Gravitational Slingshot) */}
       <InterstellarBolide />
-
-      {/* Johannes Kepler's Harmonices Mundi (Music of the Spheres 8:13 Earth-Venus Resonance Chords) */}
-      <KeplerHarmonograph />
 
       {/* Solar Heliocentric Point Light for Real-time Day/Night Planetary Terminator */}
       <pointLight position={[0, 0, 0]} intensity={4.5} distance={42} decay={1.0} color="#ffffff" />
@@ -1023,7 +1014,7 @@ export const SolarSystemCore = () => {
                 )}
 
                 {/* Saturn's Rings in equatorial plane (perpendicular to polar axis) */}
-                {planet.hasRings && visibleLayers.rings && (
+                {planet.hasRings && (
                   <mesh
                     ref={saturnRingsRef}
                     rotation={[-Math.PI / 2, 0, 0]}
@@ -1033,7 +1024,7 @@ export const SolarSystemCore = () => {
                 )}
 
                 {/* Uranus's Thin Dark Epsilon Ring tilted at 97.8 degrees */}
-                {planet.name === 'Uranus' && visibleLayers.rings && (
+                {planet.name === 'Uranus' && (
                   <mesh rotation={[-Math.PI / 2, 0, 0]}>
                     <ringGeometry args={[visRadius * 1.55, visRadius * 1.72, 96]} />
                     <meshBasicMaterial color="#ffffff" transparent opacity={0.18} side={THREE.DoubleSide} />

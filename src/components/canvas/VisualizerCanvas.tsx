@@ -4,7 +4,6 @@ import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { SolarSystemCore } from './concepts/SolarSystemCore';
 import { heliocentricPositions, solveKepler } from '../../utils/celestialMechanics';
-import { ParticleVortex } from './ParticleVortex';
 import {
   HorizonSpacecraft,
   horizonGlobalPosition,
@@ -260,8 +259,6 @@ const SceneLights = () => {
 };
 
 export const VisualizerCanvas = () => {
-  const visibleLayers = usePlayerStore(state => state.visibleLayers);
-
   return (
     <div className="absolute inset-0 w-full h-full bg-[#050507] overflow-hidden">
       <Canvas
@@ -283,14 +280,12 @@ export const VisualizerCanvas = () => {
 
 
         {/* Solar System Core */}
-        {visibleLayers.core && <SolarSystemCore />}
+        <SolarSystemCore />
 
         {/* SS Horizon Interplanetary Spacecraft in Orbit */}
         <Suspense fallback={null}>
           <HorizonSpacecraft />
         </Suspense>
-
-        {visibleLayers.particles && <ParticleVortex />}
       </Canvas>
     </div>
   );
