@@ -69,13 +69,13 @@ export const SwissBrutalistFraming: React.FC = () => {
         </div>
 
         {/* Bottom-Left */}
-        <div className="absolute bottom-20 left-6 flex items-center gap-1.5 text-neutral-500 text-[10px] tracking-widest">
+        <div className="absolute bottom-24 left-6 flex items-center gap-1.5 text-neutral-500 text-[10px] tracking-widest">
           <span className="text-white text-xs font-bold">+</span>
           <span>{SOLAR_FRAMING.bottomLeft}</span>
         </div>
 
         {/* Bottom-Right */}
-        <div className="absolute bottom-20 right-6 flex items-center gap-1.5 text-neutral-500 text-[10px] tracking-widest">
+        <div className="absolute bottom-24 right-6 flex items-center gap-1.5 text-neutral-500 text-[10px] tracking-widest">
           <span>{SOLAR_FRAMING.bottomRight}</span>
           <span className="text-white text-xs font-bold">+</span>
         </div>

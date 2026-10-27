@@ -100,18 +100,18 @@ export const PlayerDeck: React.FC = () => {
         const x = i * barWidth;
         const y = height - barHeight;
 
-        // Monochrome white gradient
+        // Starlight monochrome gradient (pure transparency, zero solid black background)
         const grad = ctx.createLinearGradient(0, height, 0, y);
-        grad.addColorStop(0, 'rgba(80, 80, 80, 0.85)');
-        grad.addColorStop(1, 'rgba(255, 255, 255, 0.95)');
+        grad.addColorStop(0, 'rgba(255, 255, 255, 0.04)');
+        grad.addColorStop(1, 'rgba(255, 255, 255, 0.50)');
 
         ctx.fillStyle = grad;
         ctx.fillRect(x + 1, y, Math.max(1, barWidth - 2), barHeight);
 
         // Pure white peak cap
         if (peakBars[i] > 2) {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(x + 1, height - peakBars[i] - 1, Math.max(1, barWidth - 2), 1.5);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+          ctx.fillRect(x + 1, height - peakBars[i] - 1, Math.max(1, barWidth - 2), 1.0);
         }
       }
     };
@@ -147,143 +147,149 @@ export const PlayerDeck: React.FC = () => {
   };
 
   return (
-    <footer className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none select-none">
-      {/* Solid Black Deck: NO backdrop-blur */}
-      <div className="mx-3 mb-3 rounded bg-[#080808] border border-white/15 shadow-2xl pointer-events-auto flex flex-col overflow-hidden">
-        
-        {/* 64-Bar Monochrome Spectrum Analyzer */}
-        <div className="w-full h-7 bg-[#050505] relative overflow-hidden border-b border-white/10">
+    <footer className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none select-none flex flex-col justify-end">
+      {/* 
+        Pure Floating Swiss Brutalist Audio Deck (Zero Container Box, Zero Clutter)
+        Directly matches the Left and Right Flank Architectural Etching
+      */}
+      
+      {/* 1. Hairline Spectrum & Scrubbing Rail (Directly on Deep Space Canvas) */}
+      <div className="w-full px-6 mb-3 pointer-events-auto flex flex-col items-center">
+        {/* Floating Spectrum Bars (16px high, pure transparency) */}
+        <div className="w-full h-3 relative overflow-hidden pointer-events-none">
           <canvas
             ref={canvasRef}
-            width={768}
-            height={28}
-            className="w-full h-full block opacity-90"
+            width={1280}
+            height={16}
+            className="w-full h-full block opacity-75"
           />
-          <div className="absolute inset-x-0 bottom-0 h-px bg-white/10" />
         </div>
 
-        {/* Progress Bar (Clickable) */}
-        {!isDemoSynth && (
+        {/* 1px Hairline Scrubbing Rail */}
+        <div
+          className="group relative w-full h-2.5 flex items-center cursor-pointer"
+          onClick={handleProgressBarClick}
+          title="Click to seek position"
+        >
+          {/* Subtle Background Guide Track */}
+          <div className="w-full h-[1px] bg-white/10 group-hover:bg-white/25 transition-colors" />
+
+          {/* Active Elapsed Horizon */}
           <div
-            className="group relative w-full h-1 bg-[#121212] cursor-pointer overflow-hidden transition-all hover:h-2"
-            onClick={handleProgressBarClick}
+            className="absolute left-0 h-[1px] bg-white shadow-[0_0_6px_#ffffff] transition-all"
+            style={{ width: `${Math.min(100, Math.max(0, playbackProgress * 100))}%` }}
+          />
+
+          {/* Precision Micro Crosshair Marker on Hover */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-2 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ left: `${Math.min(100, Math.max(0, playbackProgress * 100))}%` }}
           >
-            <div
-              className="h-full bg-white relative"
-              style={{ width: `${Math.min(100, Math.max(0, playbackProgress * 100))}%` }}
+            <span className="text-[10px] text-white font-bold leading-none select-none">+</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Floating Swiss Brutalist Footer Telemetry (Zero Outer Box, Matching Flanks) */}
+      <div className="w-full px-6 pb-5 flex items-end justify-between font-mono">
+        
+        {/* Bottom-Left: Audio Carrier & Metadata (Matches Left Flank border-l) */}
+        <div className="flex flex-col gap-0.5 border-l border-white/20 pl-2.5 pointer-events-auto">
+          <div className="text-[8px] text-neutral-500 uppercase tracking-widest">
+            AUDIO CARRIER // CHANNEL A
+          </div>
+          <div className="text-xs font-bold text-white tracking-wider truncate max-w-[240px] md:max-w-xs">
+            {currentTrack ? currentTrack.title.toUpperCase() : 'NO TRACK LOADED'}
+          </div>
+          <div className="text-[9.5px] text-neutral-400 tracking-wider truncate max-w-[240px] md:max-w-xs">
+            {currentTrack ? currentTrack.artist.toUpperCase() : 'DRAG & DROP AUDIO FILE'}
+          </div>
+        </div>
+
+        {/* Bottom-Center: Pure Typographic Audio Controls */}
+        <div className="flex flex-col items-center gap-1.5 pointer-events-auto select-none">
+          <div className="flex items-center gap-4">
+            {/* Prev */}
+            <button
+              onClick={playPrev}
+              disabled={tracks.length <= 1}
+              className="text-neutral-400 hover:text-white transition-colors cursor-pointer disabled:opacity-20 text-[10px] tracking-widest font-mono"
+              title="Previous Track"
             >
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-          </div>
-        )}
+              [ |◁ ]
+            </button>
 
-        {/* Minimalist Player Controls */}
-        <div className="px-4 py-2 flex items-center justify-between gap-4 font-mono text-xs">
-          
-          {/* Left: Track Information */}
-          <div className="flex items-center gap-3 min-w-0 flex-1 max-w-[280px] md:max-w-xs">
-            <div className="w-8 h-8 rounded bg-[#121212] border border-white/10 flex items-center justify-center shrink-0">
-              <Disc
-                className={`w-4 h-4 text-neutral-300 ${
-                  isPlaying ? 'animate-[spin_4s_linear_infinite]' : ''
-                }`}
-              />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold text-white truncate">
-                {isDemoSynth
-                  ? 'PROCEDURAL 128 BPM SYNTH'
-                  : currentTrack
-                  ? currentTrack.title
-                  : 'NO TRACK LOADED'}
-              </div>
-              <div className="text-[10px] text-neutral-500 truncate">
-                {isDemoSynth
-                  ? 'KICK & SAWTOOTH BASSLINE'
-                  : currentTrack
-                  ? currentTrack.artist
-                  : 'READY'}
-              </div>
-            </div>
+            {/* Play / Pause - Minimalist Glass Reticle */}
+            <button
+              onClick={togglePlay}
+              className="w-7 h-7 rounded-full border border-white/40 hover:border-white bg-white/5 hover:bg-white/15 text-white flex items-center justify-center transition-all cursor-pointer shadow-[0_0_8px_rgba(255,255,255,0.1)] active:scale-95"
+              title={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? (
+                <Pause className="w-3 h-3 fill-white stroke-none" />
+              ) : (
+                <Play className="w-3 h-3 fill-white stroke-none ml-0.5" />
+              )}
+            </button>
+
+            {/* Next */}
+            <button
+              onClick={playNext}
+              disabled={tracks.length <= 1}
+              className="text-neutral-400 hover:text-white transition-colors cursor-pointer disabled:opacity-20 text-[10px] tracking-widest font-mono"
+              title="Next Track"
+            >
+              [ ▷| ]
+            </button>
           </div>
 
-          {/* Center: Controls & Time */}
-          <div className="flex flex-col items-center gap-1">
-            <div className="flex items-center gap-3">
-              {/* Prev */}
-              <button
-                onClick={playPrev}
-                disabled={isDemoSynth || tracks.length <= 1}
-                className="p-1 text-neutral-400 hover:text-white disabled:opacity-20 transition-colors"
-                title="Previous"
-              >
-                <SkipBack className="w-4 h-4" />
-              </button>
-
-              {/* Play / Pause Primary Button */}
-              <button
-                onClick={togglePlay}
-                className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center hover:bg-neutral-200 transition-all active:scale-95 shadow-md"
-                title={isPlaying ? 'Pause' : 'Play'}
-              >
-                {isPlaying ? (
-                  <Pause className="w-4 h-4 fill-black stroke-black" />
-                ) : (
-                  <Play className="w-4 h-4 fill-black stroke-black ml-0.5" />
-                )}
-              </button>
-
-              {/* Next */}
-              <button
-                onClick={playNext}
-                disabled={isDemoSynth || tracks.length <= 1}
-                className="p-1 text-neutral-400 hover:text-white disabled:opacity-20 transition-colors"
-                title="Next"
-              >
-                <SkipForward className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Time Display */}
-            {!isDemoSynth && (
-              <div className="text-[10px] text-neutral-500 font-mono tracking-wider">
-                <span>{formatTime(currentTime)}</span>
-                <span className="mx-1 text-neutral-700">/</span>
-                <span>{formatTime(duration)}</span>
-              </div>
-            )}
-            {isDemoSynth && (
-              <div className="text-[9px] text-neutral-400 font-mono tracking-widest uppercase">
-                128 BPM ANALOG CLOCK
-              </div>
-            )}
+          {/* Elapsed / Duration Timestamp */}
+          <div className="text-[9.5px] text-neutral-400 font-mono tracking-[0.2em]">
+            <span className="text-white font-semibold">{formatTime(currentTime)}</span>
+            <span className="text-neutral-600 mx-1.5">//</span>
+            <span>{formatTime(duration)}</span>
           </div>
+        </div>
 
-          {/* Right: Volume Control */}
-          <div className="flex items-center gap-2 justify-end flex-1 max-w-[160px]">
+        {/* Bottom-Right: Master Stage & Gain Slider (Matches Right Flank border-r) */}
+        <div className="flex flex-col items-end gap-0.5 border-r border-white/20 pr-2.5 text-right pointer-events-auto">
+          <div className="text-[8px] text-neutral-500 uppercase tracking-widest">
+            OUTPUT STAGE // MASTER
+          </div>
+          <div className="flex items-center gap-2 text-[10px] tracking-wider my-0.5">
             <button
               onClick={handleToggleMute}
-              className="p-1 text-neutral-400 hover:text-white transition-colors"
+              className="text-neutral-400 hover:text-white transition-colors cursor-pointer p-0.5"
               title={isMuted ? 'Unmute' : 'Mute'}
             >
               {isMuted || volume === 0 ? (
-                <VolumeX className="w-3.5 h-3.5 text-neutral-600" />
+                <VolumeX className="w-3 h-3 text-neutral-500" />
               ) : (
-                <Volume2 className="w-3.5 h-3.5 text-neutral-300" />
+                <Volume2 className="w-3 h-3 text-neutral-300" />
               )}
             </button>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
-              className="w-16 sm:w-20 h-1 bg-[#1c1c1c] rounded appearance-none cursor-pointer accent-white"
-              title={`Volume: ${Math.round(volume * 100)}%`}
-            />
+            <div
+              className="w-16 h-1 bg-white/15 relative overflow-hidden cursor-pointer"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                setVolume(pct);
+                if (isMuted) setIsMuted(false);
+              }}
+              title={`Master Gain: ${Math.round(volume * 100)}%`}
+            >
+              <div
+                className="h-full bg-white transition-all shadow-[0_0_4px_#ffffff]"
+                style={{ width: `${isMuted ? 0 : Math.round(volume * 100)}%` }}
+              />
+            </div>
+            <span className="text-white font-bold text-[9px] w-7 text-right">
+              {isMuted ? '0%' : `${Math.round(volume * 100)}%`}
+            </span>
           </div>
-
+          <div className="text-[8px] text-neutral-500 tracking-widest">
+            48.0 KHZ // 24-BIT STEREO
+          </div>
         </div>
       </div>
     </footer>
