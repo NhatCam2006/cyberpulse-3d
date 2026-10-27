@@ -178,7 +178,7 @@ export const sunAtmosphereFragmentShader = /* glsl */ `
     float spicules = pow(grazingRim, 8.0) * (0.6 + snoise(vec3(vPosition.xy * 32.0, uTime * 0.9)) * 0.35);
 
     // Audio responsiveness: Solar flare expansion on heavy kick + subtle melodic glint on piano/vocals
-    float melodicGlint = (1.0 - smoothstep(0.15, 0.60, uBeatIntensity)) * (uMid * 0.12);
+    float melodicGlint = (1.0 - smoothstep(0.12, 0.50, uBeatIntensity)) * (uMid * 0.35);
     float flare = (uBass * 0.10 + pow(uBeatIntensity, 1.30) * 0.45) + melodicGlint;
     float finalLuminance = (surface + spicules) * (1.0 + flare);
 

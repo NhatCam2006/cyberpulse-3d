@@ -52,6 +52,7 @@ import {
   auroralCurtainFragmentShader,
 } from '../../../shaders/auroralCurtainShader';
 import { SolarCoronaBillboard } from './SolarCoronaBillboard';
+import { CoronalMicroRipples } from './CoronalMicroRipples';
 import { InterstellarBolide } from './InterstellarBolide';
 import { KuiperRadarBoundary } from './KuiperRadarBoundary';
 import { OuterHeliosphericPulseRing } from './OuterHeliosphericPulseRing';
@@ -578,11 +579,14 @@ export const SolarSystemCore = () => {
       // Punchy, snappy transient kick dynamics:
       // Uses pow(beatIntensity, 1.35) * 0.16 to create a crisp, highly visible +16% pop on drum kicks
       // with low bass rumble (+3.5%) so continuous music NEVER stays bloated or flat
-      const punch = Math.pow(beatIntensity, 1.35) * 0.16;
+      const kickPunch = Math.pow(beatIntensity, 1.35) * 0.16;
+      const isKickActive = Math.min(1.0, beatIntensity * 2.0);
+      const melodicBreath = (1.0 - isKickActive) * (mid * 0.055 + acousticEnergy * 0.040 + Math.sin(time * 3.0) * mid * 0.015);
+      const punch = kickPunch + melodicBreath;
       const subRumble = bass * 0.035;
       const sunScale = 1.0 + subRumble + punch;
       sunMeshRef.current.scale.set(sunScale, sunScale, sunScale);
-      sunMeshRef.current.rotation.y += delta * 0.08;
+      sunMeshRef.current.rotation.y += delta * (0.07 + mid * 0.05);
     }
 
     // 2. Update All Planetary Shader Uniforms
@@ -910,6 +914,7 @@ export const SolarSystemCore = () => {
 
       {/* Astrophysical Solar Corona Optical Diffraction Rays & Halo */}
       <SolarCoronaBillboard />
+      <CoronalMicroRipples />
 
       {/* Hyperbolic Interstellar Bolide / Meteor (Ephemeral Gravitational Slingshot) */}
       <InterstellarBolide />

@@ -58,7 +58,7 @@ export const PlayerDeck: React.FC = () => {
     };
   }, [updateTime, handleTrackEnd]);
 
-  // 60FPS 2D Canvas Spectrum Analyzer (Pure Monochrome Ryoji Ikeda style)
+  // 60FPS HUD Optical Horizon Oscilloscope & Spectrum Rail (Idea 2)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -69,54 +69,102 @@ export const PlayerDeck: React.FC = () => {
     const NUM_BARS = 64;
     const peakBars = new Float32Array(NUM_BARS);
 
-    const renderSpectrum = () => {
-      animId = requestAnimationFrame(renderSpectrum);
+    const render = () => {
+      animId = requestAnimationFrame(render);
 
       const width = canvas.width;
       const height = canvas.height;
+      const midY = height / 2;
       ctx.clearRect(0, 0, width, height);
 
       const engine = AudioEngine.getInstance();
-      const data = engine.dataArray;
-      const step = Math.max(1, Math.floor(data.length / NUM_BARS));
+      engine.update();
+      const freqData = engine.dataArray;
+      const timeData = engine.timeDomainArray;
+      const timeLen = timeData.length;
+
+      // 1. Subtle Background Reference Baseline & Tick Marks
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1.0;
+      ctx.beginPath();
+      ctx.moveTo(0, midY);
+      ctx.lineTo(width, midY);
+      ctx.stroke();
+
+      // Quarter & Center Registration Ticks
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+      const quarterWidth = width / 4;
+      for (let q = 1; q <= 3; q++) {
+        const qx = q * quarterWidth;
+        ctx.beginPath();
+        ctx.moveTo(qx, midY - 3);
+        ctx.lineTo(qx, midY + 3);
+        ctx.stroke();
+      }
+
+      // 2. Faint Micro-Spectrum Underlay (Delicate Ryoji Ikeda background columns)
+      const step = Math.max(1, Math.floor(freqData.length / NUM_BARS));
       const barWidth = width / NUM_BARS;
 
       for (let i = 0; i < NUM_BARS; i++) {
         let sum = 0;
         for (let j = 0; j < step; j++) {
-          sum += data[i * step + j] || 0;
+          sum += freqData[i * step + j] || 0;
         }
         const val = sum / (step * 255);
         const boostedVal = Math.min(1.0, Math.pow(val, 1.2) * (1.0 + (i / NUM_BARS) * 0.7));
-        const barHeight = Math.max(1, boostedVal * (height - 3));
+        const barHeight = Math.max(0, boostedVal * (height * 0.65));
 
         // Peak hold decay
         if (barHeight > peakBars[i]) {
           peakBars[i] = barHeight;
         } else {
-          peakBars[i] = Math.max(0, peakBars[i] - 0.6);
+          peakBars[i] = Math.max(0, peakBars[i] - 0.5);
         }
 
         const x = i * barWidth;
         const y = height - barHeight;
 
-        // Starlight monochrome gradient (pure transparency, zero solid black background)
+        // Faint starlight monochrome gradient
         const grad = ctx.createLinearGradient(0, height, 0, y);
-        grad.addColorStop(0, 'rgba(255, 255, 255, 0.04)');
-        grad.addColorStop(1, 'rgba(255, 255, 255, 0.50)');
+        grad.addColorStop(0, 'rgba(255, 255, 255, 0.02)');
+        grad.addColorStop(1, 'rgba(255, 255, 255, 0.16)');
 
         ctx.fillStyle = grad;
         ctx.fillRect(x + 1, y, Math.max(1, barWidth - 2), barHeight);
+      }
 
-        // Pure white peak cap
-        if (peakBars[i] > 2) {
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-          ctx.fillRect(x + 1, height - peakBars[i] - 1, Math.max(1, barWidth - 2), 1.0);
+      // 3. Primary Vector Oscilloscope Wave (Ultra-sharp, responsive to whispers, piano & kicks)
+      if (timeLen > 0) {
+        ctx.beginPath();
+        for (let i = 0; i < timeLen; i++) {
+          const x = (i / (timeLen - 1)) * width;
+          // timeData values: 128 = silence, 0..255 = full wave amplitude
+          const norm = (timeData[i] - 128) / 128.0;
+          // Non-linear power expansion preserves whisper/piano sensitivity while avoiding hard clipping on kicks
+          const disp = Math.sign(norm) * Math.pow(Math.abs(norm), 0.85) * (height * 0.44);
+          const y = midY - disp;
+
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
         }
+
+        // Outer starlight bloom trace
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        // Razor-thin core laser trace
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.lineWidth = 1.0;
+        ctx.stroke();
       }
     };
 
-    animId = requestAnimationFrame(renderSpectrum);
+    animId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animId);
   }, []);
 
@@ -153,15 +201,15 @@ export const PlayerDeck: React.FC = () => {
         Directly matches the Left and Right Flank Architectural Etching
       */}
       
-      {/* 1. Hairline Spectrum & Scrubbing Rail (Directly on Deep Space Canvas) */}
+      {/* 1. Hairline Oscilloscope & Scrubbing Rail (Directly on Deep Space Canvas) */}
       <div className="w-full px-6 mb-3 pointer-events-auto flex flex-col items-center">
-        {/* Floating Spectrum Bars (16px high, pure transparency) */}
-        <div className="w-full h-3 relative overflow-hidden pointer-events-none">
+        {/* Continuous Vector Oscilloscope Horizon Rail (Idea 2) */}
+        <div className="w-full h-5 relative overflow-hidden pointer-events-none mb-0.5">
           <canvas
             ref={canvasRef}
             width={1280}
-            height={16}
-            className="w-full h-full block opacity-75"
+            height={28}
+            className="w-full h-full block"
           />
         </div>
 
