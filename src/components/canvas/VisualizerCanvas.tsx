@@ -175,7 +175,7 @@ const CameraRig = () => {
       const orbitSpeed = 0.035;   // Tốc độ xoay thư thái, êm dịu (~180s/vòng)
       const vistaAngle = initialAngle + time * orbitSpeed;
 
-      const baseDist = 13.2 - beatIntensity * 0.35 + driftDist;
+      const baseDist = 13.2 - beatIntensity * 0.05 + driftDist;
       const targetX = Math.sin(vistaAngle) * baseDist;
       const targetZ = Math.cos(vistaAngle) * baseDist;
       let targetY = 5.12 + driftElevation;

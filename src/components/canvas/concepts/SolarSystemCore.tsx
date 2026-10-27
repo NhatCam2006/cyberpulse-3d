@@ -575,7 +575,9 @@ export const SolarSystemCore = () => {
       sunShaderMat.uniforms.uMid.value = mid;
       sunShaderMat.uniforms.uBeatIntensity.value = beatIntensity;
 
-      const sunScale = 1.0 + bass * 0.28 + beatIntensity * 0.45;
+      // Astrophysical Sun Breathing: Subtle, dense, gravitational pulsation (max +6% to +8%)
+      // Prevents rubber-balloon swelling while preserving deep-space monolithic presence
+      const sunScale = 1.0 + bass * 0.035 + beatIntensity * 0.050;
       sunMeshRef.current.scale.set(sunScale, sunScale, sunScale);
       sunMeshRef.current.rotation.y += delta * 0.08;
     }

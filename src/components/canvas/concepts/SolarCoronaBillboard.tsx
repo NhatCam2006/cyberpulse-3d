@@ -45,10 +45,10 @@ export const SolarCoronaBillboard = () => {
     material.uniforms.uAcousticEnergy.value = acousticEnergy;
     material.uniforms.uBeatIntensity.value = beatIntensity;
 
-    // Dual-layer breathing scale:
-    // Heavy kick punch (bass & beatIntensity) + Melodic vocal/piano breathing when kick rests
-    const kickPunch = bass * 0.6 + beatIntensity * 0.8;
-    const melodicBreath = (1.0 - Math.min(1.0, beatIntensity * 1.5)) * (mid * 0.45 + acousticEnergy * 0.25);
+    // Dual-layer coronal breathing:
+    // Controlled starlight optical diffraction shimmer (max +5% to +7%)
+    const kickPunch = bass * 0.18 + beatIntensity * 0.25;
+    const melodicBreath = (1.0 - Math.min(1.0, beatIntensity * 1.5)) * (mid * 0.15 + acousticEnergy * 0.10);
     const s = 6.8 + kickPunch + melodicBreath;
     meshRef.current.scale.set(s, s, s);
   });
