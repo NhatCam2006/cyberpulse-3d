@@ -8,6 +8,9 @@ import {
   Rocket,
   Crosshair,
   FolderOpen,
+  Orbit,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { AudioEngine } from '../../audio/AudioEngine';
@@ -18,15 +21,31 @@ interface TopTelemetryProps {
   isDrawerOpen: boolean;
 }
 
+const CELESTIAL_BODIES = [
+  { name: 'Sol', symbol: '☉', type: 'STAR' },
+  { name: 'Mercury', symbol: '☿', type: 'TERRESTRIAL' },
+  { name: 'Venus', symbol: '♀', type: 'TERRESTRIAL' },
+  { name: 'Earth', symbol: '🜨', type: 'TERRESTRIAL' },
+  { name: 'Mars', symbol: '♂', type: 'TERRESTRIAL' },
+  { name: 'Jupiter', symbol: '♃', type: 'GAS GIANT' },
+  { name: 'Saturn', symbol: '♄', type: 'GAS GIANT' },
+  { name: 'Uranus', symbol: '♅', type: 'ICE GIANT' },
+  { name: 'Neptune', symbol: '♆', type: 'ICE GIANT' },
+  { name: 'Ceres', symbol: '⚳', type: 'ASTEROID' },
+  { name: 'Pluto', symbol: '♇', type: 'DWARF' },
+];
+
 export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDrawerOpen }) => {
-  // Only FPS is kept in state, updated at most twice a second (every 500ms)
   const [fps, setFps] = useState<number>(60);
   const [showLayerMenu, setShowLayerMenu] = useState<boolean>(false);
+  const [showPlanetMenu, setShowPlanetMenu] = useState<boolean>(false);
 
   const cameraMode = usePlayerStore(state => state.cameraMode);
   const setCameraMode = usePlayerStore(state => state.setCameraMode);
   const activeTab = usePlayerStore(state => state.activeTab);
   const setActiveTab = usePlayerStore(state => state.setActiveTab);
+  const selectedPlanet = usePlayerStore(state => state.selectedPlanet);
+  const setSelectedPlanet = usePlayerStore(state => state.setSelectedPlanet);
   const visibleLayers = usePlayerStore(state => state.visibleLayers);
   const toggleLayer = usePlayerStore(state => state.toggleLayer);
   const isDemoSynth = usePlayerStore(state => state.isDemoSynth);
@@ -87,16 +106,16 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
       if (beatBadgeRef.current && beatDotRef.current) {
         const isBeat = audioData.isBeat || audioData.beatIntensity > 0.3;
         if (isBeat) {
-          beatBadgeRef.current.style.borderColor = '#ffffff';
-          beatBadgeRef.current.style.backgroundColor = '#ffffff';
-          beatBadgeRef.current.style.color = '#000000';
-          beatDotRef.current.style.backgroundColor = '#000000';
-          beatDotRef.current.style.boxShadow = '0 0 10px #ffffff';
+          beatBadgeRef.current.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+          beatBadgeRef.current.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+          beatBadgeRef.current.style.color = '#ffffff';
+          beatDotRef.current.style.backgroundColor = '#ffffff';
+          beatDotRef.current.style.boxShadow = '0 0 6px #ffffff';
         } else {
-          beatBadgeRef.current.style.borderColor = 'rgba(255, 255, 255, 0.15)';
-          beatBadgeRef.current.style.backgroundColor = '#080808';
-          beatBadgeRef.current.style.color = '#666666';
-          beatDotRef.current.style.backgroundColor = '#333333';
+          beatBadgeRef.current.style.borderColor = 'rgba(255, 255, 255, 0.10)';
+          beatBadgeRef.current.style.backgroundColor = '#0a0a0e';
+          beatBadgeRef.current.style.color = '#555566';
+          beatDotRef.current.style.backgroundColor = '#33333f';
           beatDotRef.current.style.boxShadow = 'none';
         }
       }
@@ -112,28 +131,31 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
 
   return (
     <header className="absolute top-0 left-0 right-0 z-20 pointer-events-none select-none">
-      {/* Top Monochrome Telemetry Bar: NO backdrop-blur, solid #080808 */}
-      <div className="mx-3 mt-3 px-4 py-2 rounded bg-[#080808] border border-white/15 shadow-2xl flex flex-wrap items-center justify-between gap-3 pointer-events-auto">
+      {/* 
+        Single-Row Unified Top Telemetry Bar:
+        Chiaroscuro Dark Architecture, Zero Glare, Zero 2nd Row Clutter
+      */}
+      <div className="mx-3 mt-3 px-4 py-1.5 rounded bg-[#08080c]/90 border border-white/10 shadow-xl flex items-center justify-between gap-3 pointer-events-auto backdrop-blur-sm">
         
-        {/* Left Section: Nothing OS Style Typography & Meters */}
-        <div className="flex items-center gap-4">
-          {/* Logo / Dot Identity */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-2 h-2 rounded-full bg-white shadow-[0_0_6px_#ffffff]" />
+        {/* Left Section: Typography & Real-time Meters */}
+        <div className="flex items-center gap-3.5">
+          {/* Logo Identity */}
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-white/90 shadow-[0_0_4px_#ffffff]" />
             <div>
               <div className="font-mono font-bold tracking-widest text-xs text-white">
                 CYBERPULSE <span className="text-neutral-500 font-normal">/ 01</span>
               </div>
-              <div className="text-[9px] font-mono tracking-wider text-neutral-400 uppercase">
-                CELESTIAL MECHANICS // KEPLER ORRERY
+              <div className="text-[8.5px] font-mono tracking-wider text-neutral-400 uppercase hidden lg:block">
+                KEPLER ORRERY // DE440
               </div>
             </div>
           </div>
 
           <div className="h-4 w-px bg-white/10 hidden sm:block" />
 
-          {/* FPS Counter (State updated max 2 times/sec) */}
-          <div className="hidden sm:flex items-center gap-1.5 font-mono text-[11px] bg-[#101010] px-2 py-0.5 rounded border border-white/10">
+          {/* FPS Counter */}
+          <div className="hidden sm:flex items-center gap-1.5 font-mono text-[10px] bg-[#101014] px-2 py-0.5 rounded border border-white/10">
             <Activity className="w-3 h-3 text-neutral-400" />
             <span className="text-neutral-500">FPS:</span>
             <span className={`font-bold ${fps >= 55 ? 'text-white' : fps >= 30 ? 'text-neutral-400' : 'text-neutral-600'}`}>
@@ -141,12 +163,12 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
             </span>
           </div>
 
-          {/* Frequency Meters updated via scaleX on Ref (ZERO React re-renders) */}
-          <div className="hidden md:flex items-center gap-3 font-mono text-[10px]">
+          {/* Micro Frequency Meters (B / M / H) */}
+          <div className="hidden md:flex items-center gap-2.5 font-mono text-[9px]">
             {/* Bass */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <span className="text-neutral-400 font-semibold">B</span>
-              <div className="w-12 h-1.5 bg-[#141414] rounded-none overflow-hidden border border-white/10 p-0">
+              <div className="w-10 h-1.5 bg-[#14141a] rounded-none overflow-hidden border border-white/10 p-0">
                 <div
                   ref={bassBarRef}
                   className="h-full bg-white origin-left will-change-transform"
@@ -156,9 +178,9 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
             </div>
 
             {/* Mid */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <span className="text-neutral-400 font-semibold">M</span>
-              <div className="w-12 h-1.5 bg-[#141414] rounded-none overflow-hidden border border-white/10 p-0">
+              <div className="w-10 h-1.5 bg-[#14141a] rounded-none overflow-hidden border border-white/10 p-0">
                 <div
                   ref={midBarRef}
                   className="h-full bg-neutral-300 origin-left will-change-transform"
@@ -168,9 +190,9 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
             </div>
 
             {/* High */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <span className="text-neutral-400 font-semibold">H</span>
-              <div className="w-12 h-1.5 bg-[#141414] rounded-none overflow-hidden border border-white/10 p-0">
+              <div className="w-10 h-1.5 bg-[#14141a] rounded-none overflow-hidden border border-white/10 p-0">
                 <div
                   ref={highBarRef}
                   className="h-full bg-neutral-400 origin-left will-change-transform"
@@ -180,10 +202,10 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
             </div>
           </div>
 
-          {/* BEAT DETECTED Badge (updated via direct ref manipulation) */}
+          {/* BEAT DETECTED Badge */}
           <div
             ref={beatBadgeRef}
-            className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono font-medium tracking-widest border border-white/15 bg-[#080808] text-neutral-500 transition-colors duration-75"
+            className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-mono tracking-widest border border-white/10 bg-[#0a0a0e] text-neutral-500 transition-colors duration-75"
           >
             <div
               ref={beatDotRef}
@@ -193,75 +215,151 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
           </div>
         </div>
 
-        {/* Center Section: Tab Switcher (HỆ MẶT TRỜI vs KIỂM TRA TÀU 3D) */}
-        <div className="flex items-center gap-1 p-0.5 rounded bg-[#101018] border border-white/20 select-none">
+        {/* Center Section: Subdued Chiaroscuro Tab Switcher (Zero White Glare) */}
+        <div className="flex items-center gap-1 p-0.5 rounded bg-[#0a0a0e] border border-white/10 select-none">
           <button
             onClick={() => setActiveTab('system')}
-            className={`px-3 py-1 rounded text-xs font-mono font-bold tracking-wider transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-mono tracking-wider transition-all cursor-pointer ${
               activeTab === 'system'
-                ? 'bg-white text-black shadow-md'
-                : 'text-neutral-400 hover:text-white'
+                ? 'bg-white/15 text-white font-bold border border-white/25 shadow-none'
+                : 'text-neutral-500 hover:text-neutral-300'
             }`}
           >
-            ☉ HỆ MẶT TRỜI
+            <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'system' ? 'bg-white shadow-[0_0_4px_#ffffff]' : 'bg-neutral-600'}`} />
+            <span>HỆ MẶT TRỜI</span>
           </button>
           <button
             onClick={() => setActiveTab('hangar')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-mono font-bold tracking-wider transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-mono tracking-wider transition-all cursor-pointer ${
               activeTab === 'hangar'
-                ? 'bg-white text-black shadow-md'
-                : 'text-neutral-400 hover:text-white'
+                ? 'bg-white/15 text-white font-bold border border-white/25 shadow-none'
+                : 'text-neutral-500 hover:text-neutral-300'
             }`}
           >
-            <Rocket className="w-3.5 h-3.5" />
-            <span>KIỂM TRA TÀU (3D HANGAR)</span>
+            <Rocket className="w-3.5 h-3.5 text-neutral-400" />
+            <span>3D HANGAR</span>
           </button>
         </div>
 
-        {/* Right Section: Minimalist Controls */}
+        {/* Right Section: Compact Controls & Celestial Popover */}
         <div className="flex items-center gap-2">
           
-          {/* DEMO SYNTH TOGGLE (Minimalist Nothing OS button) */}
+          {/* Planet Inspection Selector Popover (Integrated in Top Bar, Eliminating Row 2) */}
+          {activeTab === 'system' && (
+            <div className="relative">
+              <button
+                onClick={() => setShowPlanetMenu(!showPlanetMenu)}
+                title="Select Celestial Body to Inspect"
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono border transition-all cursor-pointer ${
+                  selectedPlanet
+                    ? 'bg-white/20 text-white border-white/40 shadow-[0_0_8px_rgba(255,255,255,0.15)] font-bold'
+                    : 'bg-[#101014] text-neutral-300 border-white/15 hover:border-white/30 hover:text-white'
+                }`}
+              >
+                <Orbit className="w-3.5 h-3.5 text-neutral-300" />
+                <span className="font-bold tracking-wider uppercase text-[10px]">
+                  {selectedPlanet ? `${selectedPlanet.toUpperCase()}` : 'PLANETS'}
+                </span>
+                {selectedPlanet ? (
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedPlanet(null);
+                    }}
+                    className="hover:text-white text-neutral-400 ml-0.5 p-0.5 cursor-pointer"
+                    title="Return to Overview"
+                  >
+                    <X className="w-3 h-3" />
+                  </span>
+                ) : (
+                  <ChevronDown className={`w-3 h-3 text-neutral-400 transition-transform duration-150 ${showPlanetMenu ? 'rotate-180' : ''}`} />
+                )}
+              </button>
+
+              {/* Celestial Bodies Grid Popover */}
+              {showPlanetMenu && (
+                <div className="absolute right-0 mt-2 w-64 rounded bg-[#08080c]/95 border border-white/20 shadow-2xl p-2.5 z-50 flex flex-col gap-1 font-mono text-xs backdrop-blur-md">
+                  <div className="flex items-center justify-between px-1.5 py-1 text-[10px] text-neutral-400 uppercase tracking-wider font-semibold border-b border-white/10">
+                    <span>MISSION CONTROL</span>
+                    <button
+                      onClick={() => {
+                        setSelectedPlanet(null);
+                        setShowPlanetMenu(false);
+                      }}
+                      className="text-neutral-400 hover:text-white text-[9px] underline cursor-pointer"
+                    >
+                      [ OVERVIEW ]
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1 mt-1 max-h-64 overflow-y-auto pr-1">
+                    {CELESTIAL_BODIES.map((body) => (
+                      <button
+                        key={body.name}
+                        onClick={() => {
+                          setSelectedPlanet(body.name);
+                          setShowPlanetMenu(false);
+                        }}
+                        className={`flex items-center justify-between px-2 py-1.5 rounded text-left transition-colors cursor-pointer ${
+                          selectedPlanet === body.name
+                            ? 'bg-white/20 text-white font-bold border border-white/30'
+                            : 'hover:bg-white/5 text-neutral-300 hover:text-white'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5 text-[11px]">
+                          <span className="text-neutral-400 text-xs">{body.symbol}</span>
+                          <span>{body.name}</span>
+                        </span>
+                        <span className="text-[8px] text-neutral-500">{body.type}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* DEMO SYNTH TOGGLE */}
           <button
             onClick={toggleDemoSynth}
             title="Toggle 128 BPM Procedural Synthwave Demo"
-            className={`flex items-center gap-2 px-2.5 py-1 rounded text-xs font-mono font-medium tracking-wider uppercase border transition-colors ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium tracking-wider uppercase border transition-colors cursor-pointer ${
               isDemoSynth
-                ? 'bg-white text-black border-white'
-                : 'bg-[#101010] text-neutral-300 border-white/15 hover:border-white/40 hover:text-white'
+                ? 'bg-white/20 text-white border-white/40'
+                : 'bg-[#101014] text-neutral-300 border-white/15 hover:border-white/30 hover:text-white'
             }`}
           >
-            <Radio className={`w-3 h-3 ${isDemoSynth ? 'animate-pulse text-black' : 'text-neutral-400'}`} />
-            <span>SYNTH DEMO</span>
+            <Radio className={`w-3 h-3 ${isDemoSynth ? 'animate-pulse text-white' : 'text-neutral-400'}`} />
+            <span className="hidden xl:inline">SYNTH DEMO</span>
             <span
               className={`text-[9px] px-1 rounded-sm font-bold ${
-                isDemoSynth ? 'bg-black text-white' : 'bg-[#1c1c1c] text-neutral-400'
+                isDemoSynth ? 'bg-white/20 text-white' : 'bg-[#1c1c1c] text-neutral-400'
               }`}
             >
               {isDemoSynth ? 'ON' : 'OFF'}
             </span>
           </button>
 
-          {/* 3-Mode Camera Selector (VISTA -> PASSENGER DECK -> ORBIT) */}
+          {/* 3-Mode Camera Selector */}
           <button
             onClick={handleCycleCameraMode}
             title={`Camera: ${
               cameraMode === 'vista'
-                ? 'Golden Vista (Toàn cảnh Hệ Mặt Trời chuẩn xác)'
+                ? 'Golden Vista (Toàn cảnh Hệ Mặt Trời)'
                 : cameraMode === 'spacecraft'
-                ? 'Observation Deck (Góc nhìn Hành khách trên boong tàu SS Horizon)'
+                ? 'Observation Deck (Hành khách trên boong tàu SS Horizon)'
                 : 'Manual Orbit (Xoay chuột tự do)'
             }`}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono border transition-all cursor-pointer ${
               cameraMode === 'vista'
-                ? 'bg-white/10 text-white border-white/40 shadow-[0_0_8px_rgba(255,255,255,0.15)]'
+                ? 'bg-white/15 text-white border-white/30 shadow-[0_0_8px_rgba(255,255,255,0.12)]'
                 : cameraMode === 'spacecraft'
-                ? 'bg-white text-black border-white shadow-[0_0_8px_rgba(255,255,255,0.3)]'
-                : 'bg-[#101010] text-neutral-400 border-white/15 hover:text-white'
+                ? 'bg-white/20 text-white border-white/40 shadow-[0_0_8px_rgba(255,255,255,0.15)]'
+                : 'bg-[#101014] text-neutral-400 border-white/15 hover:text-white'
             }`}
           >
             {cameraMode === 'vista' && <Eye className="w-3 h-3 text-white" />}
-            {cameraMode === 'spacecraft' && <Crosshair className="w-3 h-3 text-black animate-pulse" />}
+            {cameraMode === 'spacecraft' && <Crosshair className="w-3 h-3 text-white animate-pulse" />}
             {cameraMode === 'orbit' && <Camera className="w-3 h-3 text-neutral-400" />}
             <span className="font-bold tracking-wider uppercase text-[10px]">
               {cameraMode === 'vista'
@@ -277,17 +375,17 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
             <button
               onClick={() => setShowLayerMenu(!showLayerMenu)}
               title="Toggle 3D Scene Layers"
-              className={`p-1 rounded border transition-colors ${
+              className={`p-1.5 rounded border transition-colors cursor-pointer ${
                 showLayerMenu
-                  ? 'bg-white text-black border-white'
-                  : 'bg-[#101010] text-neutral-400 border-white/15 hover:text-white'
+                  ? 'bg-white/20 text-white border-white/30'
+                  : 'bg-[#101014] text-neutral-400 border-white/15 hover:text-white'
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
             </button>
 
             {showLayerMenu && (
-              <div className="absolute right-0 mt-2 w-40 rounded bg-[#080808] border border-white/20 shadow-2xl p-2 z-50 flex flex-col gap-1 font-mono text-xs">
+              <div className="absolute right-0 mt-2 w-40 rounded bg-[#08080c] border border-white/20 shadow-2xl p-2 z-50 flex flex-col gap-1 font-mono text-xs">
                 <div className="text-[10px] text-neutral-500 px-2 py-1 uppercase tracking-wider font-semibold border-b border-white/10">
                   Layers
                 </div>
@@ -295,7 +393,7 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
                   <button
                     key={layer}
                     onClick={() => toggleLayer(layer)}
-                    className="flex items-center justify-between px-2 py-1 rounded hover:bg-[#141414] text-left transition-colors"
+                    className="flex items-center justify-between px-2 py-1 rounded hover:bg-[#141418] text-left transition-colors cursor-pointer"
                   >
                     <span className="capitalize text-neutral-300">{layer}</span>
                     <Eye
@@ -313,10 +411,10 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
           <button
             onClick={onToggleDrawer}
             title="Open Track Archive"
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono border transition-colors ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono border transition-colors cursor-pointer ${
               isDrawerOpen
-                ? 'bg-white text-black border-white'
-                : 'bg-[#101010] text-neutral-300 border-white/15 hover:border-white/40 hover:text-white'
+                ? 'bg-white/20 text-white border-white/30'
+                : 'bg-[#101014] text-neutral-300 border-white/15 hover:border-white/30 hover:text-white'
             }`}
           >
             <FolderOpen className="w-3 h-3" />
@@ -330,7 +428,7 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
         </div>
       </div>
 
-      {/* Planetary Mission Control Sub-HUD (Active exclusively in Solar System mode) */}
+      {/* Floating Detailed Ephemeris Card (Appears gracefully on the left flank ONLY when a planet is selected) */}
       <SolarSystemHud />
     </header>
   );
