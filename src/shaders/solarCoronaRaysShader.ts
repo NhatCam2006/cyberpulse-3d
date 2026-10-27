@@ -84,6 +84,6 @@ export const solarCoronaRaysFragmentShader = /* glsl */ `
     float finalAlpha = clamp(totalCorona * edgeMask * innerCut, 0.0, 1.0);
 
     // Silky, translucent starlight silver (anti-glare, non-blinding)
-    gl_FragColor = vec4(vec3(0.92), finalAlpha * 0.30);
+    gl_FragColor = vec4(vec3(0.92), finalAlpha * 0.24);
   }
 `;

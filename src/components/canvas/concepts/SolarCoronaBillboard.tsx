@@ -46,11 +46,10 @@ export const SolarCoronaBillboard = () => {
     material.uniforms.uBeatIntensity.value = beatIntensity;
 
     // Dual-layer astrophysical coronal breathing (gentle, anti-glare, non-blinding):
-    const kickPunch = Math.pow(beatIntensity, 1.30) * 1.10;
+    const kickPunch = Math.pow(beatIntensity, 1.30) * 0.75;
     const isKick = Math.min(1.0, beatIntensity * 1.8);
-    const melodicBreath = (1.0 - isKick) * (mid * 0.65 + acousticEnergy * 0.45 + Math.sin(time * 2.4) * mid * 0.15);
-    const subRumble = bass * 0.15;
-    const s = 5.6 + kickPunch + melodicBreath + subRumble;
+    const melodicBreath = (1.0 - isKick) * (mid * 0.45 + acousticEnergy * 0.30);
+    const s = 5.6 + kickPunch + melodicBreath;
     meshRef.current.scale.set(s, s, s);
   });
 

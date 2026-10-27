@@ -107,83 +107,47 @@ export const sunAtmosphereFragmentShader = /* glsl */ `
   }
 
   // Multi-octave Fractional Brownian Motion (fBm)
-  float fbm(vec3 p) {
-    float val = 0.0;
-    float amp = 0.52;
-    float freq = 1.0;
-    for (int i = 0; i < 4; i++) {
-      val += amp * snoise(p * freq);
-      freq *= 2.12;
-      amp *= 0.48;
-    }
-    return val;
-  }
-
-  // Cellular Voronoi approximation for Photospheric Granules
-  float solarGranulation(vec3 p) {
-    // Boiling granular convection
-    float n1 = snoise(p * 18.0 + vec3(0.0, uTime * 0.12, 0.0));
-    float n2 = snoise(p * 36.0 - vec3(uTime * 0.15, 0.0, 0.0));
-    float n3 = snoise(p * 72.0 + vec3(0.0, 0.0, uTime * 0.22));
-
-    // Cell centers are bright, cell boundaries are sharp dark lanes
-    float cell = abs(n1) * 0.6 + abs(n2) * 0.3 + abs(n3) * 0.1;
-    // Invert so centers are elevated bright mounds
-    float granuleMounds = 1.0 - smoothstep(0.08, 0.65, cell);
-    return granuleMounds;
+  // Smooth, low-frequency solar convection (0 high-frequency aliasing, 0 jitter)
+  float solarConvection(vec3 p, float tau) {
+    float n1 = snoise(p * 5.5 + vec3(0.0, tau * 0.4, 0.0));
+    float n2 = snoise(p * 11.0 + vec3(tau * 0.3, 0.0, tau * 0.2));
+    return (n1 * 0.65 + n2 * 0.35);
   }
 
   void main() {
     vec3 viewDir = normalize(cameraPosition - vWorldPosition);
     float mu = max(0.0, dot(vNormal, viewDir)); // cos(theta) between normal and line-of-sight
 
-    // 1. True Astrophysical Eddington-Barbier Limb Darkening
-    // I(mu) = I_0 * [1 - u*(1 - mu) - v*(1 - sqrt(mu))]
-    // Near center (mu=1.0): limbFactor = 1.0
-    // At limb (mu=0.0): limbFactor drops to ~0.38
-    float u = 0.62;
-    float limbDarkening = 1.0 - u * (1.0 - mu);
-    limbDarkening = pow(limbDarkening, 1.15);
+    // 1. NASA Eddington-Barbier Limb Darkening (Gives roundness without blackening)
+    float u = 0.38;
+    float v = 0.16;
+    float limb = 1.0 - u * (1.0 - mu) - v * (1.0 - sqrt(mu));
 
-    // 2. Solar Granulation Convection Cells & Dynamic Audio Plasma Churn
+    // 2. Monotonic Phase Time (Zero phase-jumping, zero jitter)
     vec3 pNorm = normalize(vPosition);
-    float granules = solarGranulation(pNorm);
-    float plasmaSpeed = 0.04 + uMid * 0.10 + uBass * 0.06;
-    float macroFlow = fbm(pNorm * 4.2 + vec3(uTime * plasmaSpeed));
+    float monoTime = uTime * 0.025; // Gentle, majestic cosmic drift
 
-    // Core photosphere base emission (calibrated for high contrast & zero glare)
-    float basePhotosphere = 0.62 + granules * 0.20 + macroFlow * 0.12;
+    // 3. Smooth Convective Texture (Audio modulates subtle contrast, NOT coordinates)
+    float convection = solarConvection(pNorm, monoTime);
+    float audioContrast = 0.08 + uMid * 0.04; // Very subtle, soothing variation
+    float granules = convection * audioContrast;
 
-    // 3. Active Sunspot Belts (Toroidal magnetic fields at lat +/- 12 to 32 deg)
-    float sinLat = abs(pNorm.y);
-    float activeBand = smoothstep(0.18, 0.28, sinLat) * (1.0 - smoothstep(0.48, 0.62, sinLat));
+    // 4. Photosphere Base Radiance (Solid foundation: never dims into dark mud)
+    float basePhotosphere = 0.90 + granules;
 
-    // Multi-spot magnetic clusters (Bipolar active regions)
-    float spotNoise = fbm(pNorm * 8.5 + vec3(uTime * 0.015, 0.0, 0.0));
-    float spotCluster = smoothstep(0.38, 0.68, spotNoise) * activeBand;
+    // 5. Chromospheric Grazing Starlight Fringe (Only at extreme grazing edge mu < 0.08)
+    float edge = 1.0 - mu;
+    float rimFringe = pow(edge, 6.0) * 0.16;
 
-    // Umbra (dark inner core) & Penumbra (filamentary radial boundary)
-    float umbra = smoothstep(0.55, 0.72, spotNoise) * activeBand * 0.92;
-    float penumbraFilaments = snoise(pNorm * 42.0) * 0.15;
-    float penumbra = smoothstep(0.38, 0.55, spotNoise) * activeBand * (0.55 + penumbraFilaments);
+    // 6. Bounded Dual-Tier Luminance Envelope (Skill: stellar-luminescence-optics)
+    // Base floor: 0.88 (Clear, radiant, warm, never "tắt đèn")
+    // Ceiling: 1.05 (Soft, controlled starlight glint, never "sáng khủng khiếp")
+    float kickGlint = pow(uBeatIntensity, 1.30) * 0.12;
+    float melodicGlint = uMid * 0.06;
+    float audioPulse = kickGlint + melodicGlint;
 
-    // Faculae (Bright magnetic network surrounding sunspots, accentuated at higher limb angles)
-    float faculaeNoise = pow(max(0.0, snoise(pNorm * 28.0 + vec3(1.5))), 2.5);
-    float faculae = faculaeNoise * activeBand * (1.0 - mu * 0.5) * 0.45;
-
-    // Combine surface features
-    float surface = (basePhotosphere - (umbra + penumbra) + faculae) * limbDarkening;
-
-    // 4. Extreme Grazing Chromospheric Spicule Crown (Delicate starlight fringe, non-glaring)
-    float grazingRim = 1.0 - mu;
-    float spicules = pow(grazingRim, 7.5) * (0.55 + snoise(vec3(vPosition.xy * 28.0, uTime * 1.2)) * 0.25);
-
-    // Audio responsiveness: Gentle thermal glint on kicks & melody (zero eye-strain)
-    float melodicGlint = (uMid * 0.20);
-    float kickPop = pow(uBeatIntensity, 1.30) * 0.25;
-    float flare = (uBass * 0.08 + kickPop) + melodicGlint;
-    // Core surface preserves rich sunspot chiaroscuro; rim fringe remains soft and soothing
-    float finalLuminance = surface * (1.0 + flare * 0.15) + spicules * (1.0 + flare * 0.45);
+    float finalLuminance = (basePhotosphere * limb + rimFringe) * (1.0 + audioPulse);
+    finalLuminance = clamp(finalLuminance, 0.84, 1.06);
 
     // Output HDR luminance directly into ACES Filmic tonemapper
     gl_FragColor = vec4(vec3(finalLuminance), 1.0);
