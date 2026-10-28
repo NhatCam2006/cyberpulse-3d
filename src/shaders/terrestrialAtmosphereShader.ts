@@ -233,6 +233,14 @@ export const terrestrialAtmosphereFragmentShader = /* glsl */ `
 
       // Multi-octave fractal noise for jagged coastlines & island chains
       float fractalCoast = fbm(pNorm * 7.5) * 0.65 + snoise(pNorm * 22.0) * 0.25;
+
+      // Colossal Scale Engine: Distance-Adaptive Multi-Octave FBM (Pillar I)
+      float camDist = length(cameraPosition - vCenter);
+      float closeProximity = 1.0 - smoothstep(0.18, 0.95, camDist);
+      if (closeProximity > 0.005) {
+        fractalCoast += snoise(pNorm * 42.0) * 0.14 * closeProximity;
+      }
+
       float landmass = (eurasiaMask * 1.1 + americasMask * 0.95 + ausMask * 0.9) + fractalCoast;
       bool isOcean = landmass < 0.42 && polarCaps < 0.2;
 
@@ -253,6 +261,9 @@ export const terrestrialAtmosphereFragmentShader = /* glsl */ `
 
         // Mountain ranges (Andes, Himalayas, Rockies)
         float mountainRidges = pow(max(0.0, snoise(pNorm * 18.0)), 2.2) * 0.25;
+        if (closeProximity > 0.005) {
+          mountainRidges += pow(max(0.0, snoise(pNorm * 48.0)), 2.0) * 0.16 * closeProximity;
+        }
         surfaceAlbedo = 0.38 + desertAlbedo + mountainRidges;
 
         // Megacity Night Lights (Radiating on dark hemisphere)
@@ -273,6 +284,9 @@ export const terrestrialAtmosphereFragmentShader = /* glsl */ `
 
       float itcz = (1.0 - smoothstep(0.0, 0.18, abs(lat))) * 0.35;
       float cycloneNoise = fbm(cloudP) + itcz;
+      if (closeProximity > 0.005) {
+        cycloneNoise += snoise(cloudP * 3.5) * 0.08 * closeProximity;
+      }
       float cloudCoverage = smoothstep(0.32, 0.72, cycloneNoise);
 
       // Cloud shadow projected onto land/ocean below
@@ -282,9 +296,9 @@ export const terrestrialAtmosphereFragmentShader = /* glsl */ `
       // Blend bright cloud tops
       surfaceAlbedo = mix(surfaceAlbedo, 0.96, cloudCoverage * 0.88);
 
-      // 3. Rayleigh Atmospheric Blue/White Limb Scattering
-      float limb = pow(1.0 - max(0.0, dot(vNormal, viewDir)), 3.0);
-      atmosphereHaze = limb * (0.65 + dayNight * 0.45);
+      // 3. Rayleigh Atmospheric Blue/White Limb Scattering (Pillar III: Soft silhouette edge)
+      float limb = pow(1.0 - max(0.0, dot(vNormal, viewDir)), 3.5);
+      atmosphereHaze = limb * (0.76 + dayNight * 0.45);
 
       // 4. Geomagnetic Polar Aurora Ovals (Aurora Borealis & Australis)
       vec3 geomagneticPole = normalize(vec3(0.12, 0.98, 0.15));

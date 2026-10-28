@@ -127,7 +127,18 @@ export const jupiterAtmosphereFragmentShader = /* glsl */ `
     float billows = snoise(shearedPos * vec3(6.0, 15.0, 6.0) + vec3(0.0, 0.0, uTime * 0.06)) * 0.18;
     float microFilaments = snoise(shearedPos * vec3(14.0, 30.0, 14.0) + vec3(0.0, 0.0, uTime * 0.10)) * 0.08;
 
-    float baseAlbedo = 0.62 - equatorialBelts + fineBanding + billows + microFilaments;
+    // Colossal Scale: Distance-Adaptive Multi-Octave FBM (Pillar I of Colossal Scale)
+    float camDist = length(cameraPosition - vCenter);
+    float closeProximity = 1.0 - smoothstep(0.40, 1.85, camDist);
+    float nanoVortices = 0.0;
+    if (closeProximity > 0.005) {
+      float subHarmonic = snoise(shearedPos * vec3(18.0, 36.0, 18.0) + vec3(0.0, 0.0, uTime * 0.12)) * 0.045;
+      float microShearRipples = sin(lat * 36.0 + snoise(shearedPos * 12.0) * 2.0) * 0.025;
+      float convectivePlumes = pow(max(0.0, snoise(shearedPos * vec3(24.0, 48.0, 24.0))), 2.0) * 0.035;
+      nanoVortices = (subHarmonic + microShearRipples + convectivePlumes) * closeProximity;
+    }
+
+    float baseAlbedo = 0.62 - equatorialBelts + fineBanding + billows + microFilaments + nanoVortices;
 
     // 2. Great Red Spot (GRS: Anticyclonic Vortex in South Tropical Zone, centered in sunlit view)
     vec2 grsPos = vec2(0.0, -0.22);
@@ -194,8 +205,8 @@ export const jupiterAtmosphereFragmentShader = /* glsl */ `
     float rNorm = helioDist / 3.25;
     float irradiance = pow(1.85 / (sqrt(rNorm) + 0.85), 1.25);
 
-    // Deep planetary limb atmosphere Rayleigh rim (day side)
-    float rim = pow(1.0 - max(0.0, dot(vNormal, viewDir)), 3.0) * 0.48 * smoothstep(-0.10, 0.20, NdotL);
+    // Deep planetary limb atmosphere Rayleigh rim (Pillar III: Soft silhouette edge)
+    float rim = pow(1.0 - max(0.0, dot(vNormal, viewDir)), 3.4) * 0.58 * smoothstep(-0.12, 0.22, NdotL);
 
     // Cornette-Shanks Forward Mie Scattering Crescent Halo (backlit side)
     float LdotV = dot(lightDir, viewDir);

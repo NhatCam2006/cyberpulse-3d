@@ -13,6 +13,7 @@ export const SpacecraftObservationDeck: React.FC = () => {
   // Direct DOM Refs for 0-GC 60FPS whisper telemetry updates
   const distRef = useRef<HTMLSpanElement>(null);
   const velRef = useRef<HTMLSpanElement>(null);
+  const cruiseRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     if (cameraMode !== 'spacecraft' || activeTab !== 'system') return;
@@ -26,16 +27,26 @@ export const SpacecraftObservationDeck: React.FC = () => {
         lastUpdate = now;
         const timeSec = now * 0.001;
 
-        const r = computeHorizonOrbitalPosition(timeSec, _tempPos);
-        computeHorizonOrbitalPosition(timeSec + 0.1, _nextPos);
+        const selPlanet = usePlayerStore.getState().selectedPlanet;
+        const r = computeHorizonOrbitalPosition(timeSec, _tempPos, selPlanet);
+        computeHorizonOrbitalPosition(timeSec + 0.1, _nextPos, selPlanet);
         const distDelta = _tempPos.distanceTo(_nextPos);
         const speedApprox = (distDelta / 0.1) * 3.4 + 11.2; // ~12 - 16 km/s orbital cruise
 
         if (distRef.current) {
-          distRef.current.textContent = `${r.toFixed(2)} AU`;
+          if (selPlanet && selPlanet !== 'Sol') {
+            distRef.current.textContent = `LOW ORBIT // ${selPlanet.toUpperCase()}`;
+          } else if (selPlanet === 'Sol') {
+            distRef.current.textContent = `PERIHELION // SOL`;
+          } else {
+            distRef.current.textContent = `${r.toFixed(2)} AU`;
+          }
         }
         if (velRef.current) {
           velRef.current.textContent = `${speedApprox.toFixed(1)} KM/S`;
+        }
+        if (cruiseRef.current) {
+          cruiseRef.current.textContent = selPlanet ? `INSERTION: ${selPlanet.toUpperCase()}` : 'CRUISE: GRAND TOUR';
         }
       }
       animId = requestAnimationFrame(updateLoop);
@@ -126,7 +137,7 @@ export const SpacecraftObservationDeck: React.FC = () => {
           <span className="text-neutral-600">//</span>
           <span className="text-neutral-400">V: <strong ref={velRef} className="text-white font-mono">14.2 KM/S</strong></span>
           <span className="text-neutral-600">//</span>
-          <span className="text-neutral-400">CRUISE: TRANS-NEPTUNIAN</span>
+          <span ref={cruiseRef} className="text-neutral-400">CRUISE: GRAND TOUR</span>
         </div>
       </div>
     </div>

@@ -2,29 +2,79 @@ import React, { useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
-import { solveKepler } from '../../../utils/celestialMechanics';
+import {
+  solveKepler,
+  heliocentricPositions,
+  JPL_PLANETS,
+  DWARF_PLANETS,
+  getVisualPlanetRadius,
+} from '../../../utils/celestialMechanics';
+import { usePlayerStore } from '../../../store/usePlayerStore';
 
 // =============================================================================
-// TRANS-NEPTUNIAN / ANTI-PLUTO RESONANT ORBIT
-// Quỹ đạo ĐỐI DIỆN 180° với hành tinh xa nhất của Hệ Mặt Trời (Pluto)
-// - Bán trục lớn: a = 16.2 AU (nằm êm ái ngoài rìa Hệ Mặt Trời)
-// - Độ lệch tâm: e = 0.12 (quỹ đạo gần tròn, tốc độ lướt êm dịu, không giật cục)
-// - Góc nghiêng: i = 10.5° (góc nhìn từ trên cao trông xuống toàn cảnh đĩa hành tinh)
-// - Chu kỳ: T = 180.0s (3 phút/vòng - tốc độ điện ảnh, chậm rãi, tĩnh lặng)
+// GRAND TOUR INTERPLANETARY CRUISE ORBIT (System Overview)
+// Bán trục lớn a = 6.2 AU, e = 0.32, i = 8.5°, period = 140.0s
+// Lướt qua các hành tinh trong và ngoài, tạo đại cảnh vũ trụ sống động
 // =============================================================================
 export const HORIZON_ORBIT = {
-  a: 16.2,
-  e: 0.12,
-  i: (10.5 * Math.PI) / 180,
-  omega: ((113.7 + 180.0) * Math.PI) / 180, // 293.7° (đối diện 180° với Pluto)
-  node: ((110.3 + 180.0) * Math.PI) / 180,  // 290.3° (đối xứng tâm Mặt Trời)
-  period: 180.0,
+  a: 6.2,
+  e: 0.32,
+  i: (8.5 * Math.PI) / 180,
+  omega: (75.0 * Math.PI) / 180,
+  node: (45.0 * Math.PI) / 180,
+  period: 140.0,
 };
 
 /**
- * 0-GC Keplerian Orbital Position Calculator for SS Horizon
+ * 0-GC Orbital Position Calculator for SS Horizon
+ * Supports both Grand Tour interplanetary cruise and Low-Orbit Planetary Insertion
  */
-export function computeHorizonOrbitalPosition(t: number, outPos: THREE.Vector3): number {
+export function computeHorizonOrbitalPosition(
+  t: number,
+  outPos: THREE.Vector3,
+  selectedPlanet?: string | null
+): number {
+  // 1. Low-Orbit Flyby Insertion around selected celestial body
+  if (selectedPlanet && heliocentricPositions[selectedPlanet]) {
+    const pCenter = heliocentricPositions[selectedPlanet];
+
+    let flybyR = 0.45;
+    let flybyPeriod = 38.0;
+    let flybyInc = (22.5 * Math.PI) / 180;
+
+    if (selectedPlanet === 'Sol') {
+      flybyR = 1.95; // Just outside the boiling coronal streamer zone
+      flybyPeriod = 48.0;
+      flybyInc = (15.0 * Math.PI) / 180;
+    } else {
+      const ephem =
+        JPL_PLANETS.find(p => p.name === selectedPlanet) ||
+        DWARF_PLANETS.find(p => p.name === selectedPlanet);
+      const visR = ephem ? getVisualPlanetRadius(ephem.radius_km, ephem.isGasGiant) : 0.25;
+
+      // Saturn: fly above ring plane with generous clearance
+      if (selectedPlanet === 'Saturn') {
+        flybyR = visR * 2.15;
+        flybyInc = (26.5 * Math.PI) / 180;
+        flybyPeriod = 42.0;
+      } else {
+        // Skimming close to the upper exosphere (Colossal scale)
+        flybyR = visR * 1.45;
+        flybyInc = (22.0 * Math.PI) / 180;
+        flybyPeriod = 36.0;
+      }
+    }
+
+    const phi = ((t % flybyPeriod) / flybyPeriod) * Math.PI * 2;
+    const xRel = flybyR * Math.cos(phi);
+    const zRel = flybyR * Math.sin(phi) * Math.cos(flybyInc);
+    const yRel = flybyR * Math.sin(phi) * Math.sin(flybyInc);
+
+    outPos.set(pCenter.x + xRel, pCenter.y + yRel, pCenter.z + zRel);
+    return flybyR;
+  }
+
+  // 2. Default Grand Tour System Overview Orbit
   const M = ((t % HORIZON_ORBIT.period) / HORIZON_ORBIT.period) * Math.PI * 2;
   const E = solveKepler(M, HORIZON_ORBIT.e);
   const nu = 2.0 * Math.atan2(
@@ -36,15 +86,12 @@ export function computeHorizonOrbitalPosition(t: number, outPos: THREE.Vector3):
   const xOrb = r * Math.cos(nu);
   const zOrb = r * Math.sin(nu);
 
-  // Rotate by argument of perihelion (omega)
   const x1 = xOrb * Math.cos(HORIZON_ORBIT.omega) - zOrb * Math.sin(HORIZON_ORBIT.omega);
   const z1 = xOrb * Math.sin(HORIZON_ORBIT.omega) + zOrb * Math.cos(HORIZON_ORBIT.omega);
 
-  // Rotate by inclination (i)
   const y2 = z1 * Math.sin(HORIZON_ORBIT.i);
   const z2 = z1 * Math.cos(HORIZON_ORBIT.i);
 
-  // Rotate by longitude of ascending node (node)
   outPos.x = x1 * Math.cos(HORIZON_ORBIT.node) - z2 * Math.sin(HORIZON_ORBIT.node);
   outPos.y = y2;
   outPos.z = x1 * Math.sin(HORIZON_ORBIT.node) + z2 * Math.cos(HORIZON_ORBIT.node);
@@ -75,10 +122,9 @@ useGLTF.preload('/models/erizon_draco.glb', '/draco/gltf/');
 export const HorizonSpacecraft: React.FC = () => {
   const { scene } = useGLTF('/models/erizon_draco.glb', '/draco/gltf/');
   const shipGroupRef = useRef<THREE.Group>(null);
+  const selectedPlanet = usePlayerStore(state => state.selectedPlanet);
 
   // Pre-process and scale model for astronomical visualizer scale
-  // targetSize = 0.32: Tinh tế, vừa vặn với kích thước thiên văn của Hệ Mặt Trời,
-  // không quá to áp đảo các hành tinh, giữ trọn vẻ đẹp điện ảnh và tỷ lệ chuẩn xác.
   const clonedScene = useMemo(() => {
     const clone = scene.clone(true);
     const box = new THREE.Box3().setFromObject(clone);
@@ -108,30 +154,30 @@ export const HorizonSpacecraft: React.FC = () => {
     if (!shipGroupRef.current) return;
     const time = state.clock.elapsedTime;
 
-    // 1. Compute exact Keplerian orbital position
-    computeHorizonOrbitalPosition(time, _shipPos);
-    computeHorizonOrbitalPosition(time + 0.15, _shipNextPos);
+    // 1. Compute exact Keplerian or Low-Orbit position
+    computeHorizonOrbitalPosition(time, _shipPos, selectedPlanet);
+    computeHorizonOrbitalPosition(time + 0.12, _shipNextPos, selectedPlanet);
 
-    // 2. Physical flight velocity & prograde orientation (Hướng tiến theo quán tính)
+    // 2. Physical flight velocity & prograde orientation
     _shipVel.subVectors(_shipNextPos, _shipPos).normalize();
     _shipForward.copy(_shipVel);
 
     // 3. Orthonormal Right-Handed Coordinate Frame (Det = +1, Không lật ảnh, Không rung lắc)
-    // - Forward: Trục Z hướng thẳng theo hướng vector vận tốc quỹ đạo v
-    // - Right: Trục X vuông góc với Forward và World Up (0,1,0): R = Up x Forward
     _shipRight.crossVectors(_shipWorldUp, _shipForward).normalize();
-    // - Up: Trục Y vuông góc với Forward và Right: U = Forward x Right
     _dynamicUp.crossVectors(_shipForward, _shipRight).normalize();
 
-    // Construct pure right-handed rotation matrix: Model bow points along +Z
     _rotMatrix.makeBasis(_shipRight, _dynamicUp, _shipForward);
     _targetQuat.setFromRotationMatrix(_rotMatrix);
 
-    // 4. Update ship transform (Chuyển động mượt mà, quán tính ổn định)
+    // 4. Update ship transform - EXACT SYNCHRONIZATION WITH CAMERA (ZERO JITTER)
     shipGroupRef.current.position.copy(_shipPos);
-    shipGroupRef.current.quaternion.slerp(_targetQuat, 0.10);
+    shipGroupRef.current.quaternion.copy(_targetQuat);
 
-    // 5. Publish global vectors for cinematic CameraRig tracking
+    // 5. Derive global vectors directly from the exact synchronized quaternion
+    _shipForward.set(0, 0, 1).applyQuaternion(_targetQuat);
+    _shipRight.set(1, 0, 0).applyQuaternion(_targetQuat);
+    _dynamicUp.set(0, 1, 0).applyQuaternion(_targetQuat);
+
     horizonGlobalPosition.copy(_shipPos);
     horizonGlobalForward.copy(_shipForward);
     horizonGlobalRight.copy(_shipRight);
@@ -140,13 +186,7 @@ export const HorizonSpacecraft: React.FC = () => {
 
   return (
     <group>
-      {/* 
-        KHÔNG vẽ đường quỹ đạo ngoài của tàu để TUYỆT ĐỐI không làm rối mắt
-        hoặc gây hiểu lầm là đã thay đổi quỹ đạo các hành tinh nguyên bản.
-        Hệ Mặt Trời giữ trọn vẹn 100% hình thái DE440 nguyên thủy.
-      */}
-
-      {/* SS Horizon Vessel in Deep Space Orbit */}
+      {/* SS Horizon Vessel in Cinematic Low-Orbit or Grand Tour */}
       <group ref={shipGroupRef}>
         <primitive object={clonedScene} />
 

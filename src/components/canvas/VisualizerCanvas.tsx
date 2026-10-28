@@ -15,17 +15,17 @@ import { usePlayerStore } from '../../store/usePlayerStore';
 import { AudioEngine } from '../../audio/AudioEngine';
 
 const PLANET_ZOOM_DISTANCES: Record<string, number> = {
-  Sol: 2.85,
-  Mercury: 0.32,
-  Venus: 0.42,
-  Earth: 0.44,
-  Mars: 0.40,
-  Jupiter: 2.10,
-  Saturn: 2.45,
-  Uranus: 1.65,
-  Neptune: 1.45,
-  Ceres: 0.22,
-  Pluto: 0.24,
+  Sol: 2.10,
+  Mercury: 0.20,
+  Venus: 0.24,
+  Earth: 0.26,
+  Mars: 0.22,
+  Jupiter: 0.88,
+  Saturn: 1.15,
+  Uranus: 0.72,
+  Neptune: 0.72,
+  Ceres: 0.16,
+  Pluto: 0.18,
 };
 
 // 0 GC Static Vectors for Camera & Eye Adaptation
@@ -45,6 +45,49 @@ const CameraRig = () => {
   const selectedPlanet = usePlayerStore(state => state.selectedPlanet);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
+
+  // Elastic Inertial Head-Look (Bounded mouse look with Hookean spring auto-centering)
+  const headLookRef = useRef({
+    targetYaw: 0,
+    targetPitch: 0,
+    currentYaw: 0,
+    currentPitch: 0,
+  });
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      // Map screen coordinates relative to center: nx in [-1, 1], ny in [-1, 1]
+      const nx = (e.clientX / window.innerWidth) * 2 - 1;
+      const ny = (e.clientY / window.innerHeight) * 2 - 1;
+
+      // Deadzone in the center (8% of screen) for steady resting gaze
+      const distFromCenter = Math.hypot(nx, ny);
+      if (distFromCenter < 0.08) {
+        headLookRef.current.targetYaw = 0;
+        headLookRef.current.targetPitch = 0;
+        return;
+      }
+
+      // Bounded angles: Max yaw = 28° (0.488 rad), Max pitch = 16° (0.279 rad)
+      const maxYaw = 0.488;
+      const maxPitch = 0.279;
+
+      headLookRef.current.targetYaw = nx * maxYaw;
+      headLookRef.current.targetPitch = -ny * maxPitch;
+    };
+
+    const handleMouseLeave = () => {
+      headLookRef.current.targetYaw = 0;
+      headLookRef.current.targetPitch = 0;
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseleave', handleMouseLeave);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, []);
 
   // Cinematic Dolly Micro-Drift State (Climax / Drop recoil & smooth recovery)
   const climaxDriftRef = useRef({
@@ -101,11 +144,11 @@ const CameraRig = () => {
       0.04
     );
 
-    // 1. Planet Tracking in Solar System
-    if (selectedPlanet && heliocentricPositions[selectedPlanet]) {
+    // 1. External Planet Tracking (Vista / Orbit Mode)
+    if (cameraMode !== 'spacecraft' && selectedPlanet && heliocentricPositions[selectedPlanet]) {
       const pPos = heliocentricPositions[selectedPlanet];
 
-      if (controlsRef.current) {
+      if (controlsRef.current && cameraMode === 'orbit') {
         controlsRef.current.target.lerp(pPos, 0.08);
       }
 
@@ -193,38 +236,51 @@ const CameraRig = () => {
         controlsRef.current.target.lerp(_defaultTarget, 0.05);
       }
     } else if (cameraMode === 'spacecraft') {
-      // MODE 2: PASSENGER OBSERVATION DECK ("cảm giác mình là hành khách trên tàu")
-      // Camera được đặt ngay tại Đài quan sát / Cầu tàu (Observation Bridge) của phi thuyền SS Horizon.
-      // - Vị trí: Đặt phía trên đài vòm quan sát, hơi lùi lại sau mũi tàu để khung thân vỏ titan
-      //   và chóp mũi phi thuyền hiện diện tự nhiên ở góc dưới khung nhìn (tạo thị sai chiều sâu chân thực).
-      // - Tầm nhìn: Nhìn qua ô kính thạch anh hướng ra không gian sâu,
-      //   hướng chếch về phía Mặt Trời và toàn bộ Hệ Mặt Trời đang trôi qua trong thị sai 3D điện ảnh!
+      // MODE 2: PASSENGER OBSERVATION DECK
+      // 1. Rigid 0-lag position lock into observation deck (ELIMINATES ALL CAMERA JITTER)
       _passengerCamPos.copy(horizonGlobalPosition)
         .addScaledVector(horizonGlobalForward, -0.075) // Trên đài quan sát vòm
         .addScaledVector(horizonGlobalUp, 0.052)       // Độ cao tầm mắt trên sàn boong
         .addScaledVector(horizonGlobalRight, 0.025);   // Chếch nhẹ mạn phải tạo bố cục điện ảnh
 
-      state.camera.position.lerp(_passengerCamPos, 0.08);
+      state.camera.position.copy(_passengerCamPos);
 
-      // Vector hướng về tâm Mặt Trời (0, 0, 0)
-      _sunDirVec.copy(horizonGlobalPosition).negate().normalize();
+      // 2. Base Forward flight orientation
+      if (selectedPlanet && heliocentricPositions[selectedPlanet]) {
+        // Celestial Close-Orbit Vista (Pillar V of Colossal Scale):
+        // Vector towards planet center
+        _sunDirVec.copy(heliocentricPositions[selectedPlanet]).sub(_passengerCamPos).normalize();
+        
+        // Blend 48% towards planet center and 52% along prograde flight path,
+        // causing the colossal planetary limb and swirling cloud deck to sweep diagonally across the canopy!
+        _lookDirVec.copy(horizonGlobalForward).multiplyScalar(0.52)
+          .addScaledVector(_sunDirVec, 0.48)
+          .addScaledVector(horizonGlobalUp, -0.06)
+          .normalize();
+      } else {
+        // Grand Tour overview: forward sightline towards Sol and outer celestial vista
+        _sunDirVec.copy(horizonGlobalPosition).negate().normalize();
+        _lookDirVec.copy(horizonGlobalForward).multiplyScalar(0.42)
+          .addScaledVector(_sunDirVec, 0.58)
+          .normalize();
+      }
 
-      // Kết hợp 42% hướng bay tới và 58% hướng về phía Mặt Trời & các hành tinh
-      _lookDirVec.copy(horizonGlobalForward).multiplyScalar(0.42)
-        .addScaledVector(_sunDirVec, 0.58)
+      // 3. Elastic Inertial Head-Look (Hookean spring interpolation with auto-centering)
+      const hl = headLookRef.current;
+      const springRate = Math.min(1.0, delta * 6.5);
+      hl.currentYaw += (hl.targetYaw - hl.currentYaw) * springRate;
+      hl.currentPitch += (hl.targetPitch - hl.currentPitch) * springRate;
+
+      _lookDirVec
+        .addScaledVector(horizonGlobalRight, Math.sin(hl.currentYaw))
+        .addScaledVector(horizonGlobalUp, Math.sin(hl.currentPitch))
         .normalize();
 
-      // Điểm nhìn phía trước trong không gian
-      _shipLookAt.copy(_passengerCamPos).addScaledVector(_lookDirVec, 12.0);
-      _currentLookAt.lerp(_shipLookAt, 0.08);
+      _shipLookAt.copy(_passengerCamPos).addScaledVector(_lookDirVec, 10.0);
 
-      // Trục Up bám theo sàn tàu, triệt tiêu hoàn toàn rung lắc hay xoay vòng chóng mặt
+      // Trục Up bám theo sàn tàu, triệt tiêu hoàn toàn rung lắc
       state.camera.up.copy(horizonGlobalUp);
-      state.camera.lookAt(_currentLookAt);
-
-      if (controlsRef.current) {
-        controlsRef.current.target.lerp(_currentLookAt, 0.08);
-      }
+      state.camera.lookAt(_shipLookAt);
     } else {
       // MODE 3: FREE ORBIT (Manual mouse inspection)
       state.camera.up.set(0, 1, 0);
