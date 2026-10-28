@@ -119,26 +119,39 @@ async function fetchLyricsForTrack(
   try {
     const headers = { 'User-Agent': 'Cyberpulse3D/1.0.0 (https://github.com/NhatCam2006/cyberpulse-3d)' };
 
-    // Build multi-tier search URLs fired concurrently for high recall
+    // Build multi-tier search & direct get URLs fired concurrently for high recall & resilience
     const urls: string[] = [
+      `https://lrclib.net/api/get?track_name=${encodeURIComponent(cTitle)}&artist_name=${encodeURIComponent(cArtist)}`,
       `https://lrclib.net/api/search?track_name=${encodeURIComponent(cTitle)}&artist_name=${encodeURIComponent(cArtist)}`,
       `https://lrclib.net/api/search?q=${encodeURIComponent(cTitle + ' ' + cArtist)}`,
     ];
 
+    if (duration && duration > 0) {
+      urls.unshift(`https://lrclib.net/api/get?track_name=${encodeURIComponent(cTitle)}&artist_name=${encodeURIComponent(cArtist)}&duration=${Math.round(duration)}`);
+    }
+
     // If artist has multiple words or moniker (e.g. "HENRY LAU" -> "HENRY"), query first word
     const artistTokens = cArtist.split(/\s+/).filter(Boolean);
     if (artistTokens.length > 1) {
+      urls.push(`https://lrclib.net/api/get?track_name=${encodeURIComponent(cTitle)}&artist_name=${encodeURIComponent(artistTokens[0])}`);
       urls.push(`https://lrclib.net/api/search?q=${encodeURIComponent(cTitle + ' ' + artistTokens[0])}`);
     }
 
     // If original title had bracketed/Hangul alternate (e.g. "태풍 (The Eye)" or "Only One"), query raw title
     if (title !== cTitle) {
+      urls.push(`https://lrclib.net/api/get?track_name=${encodeURIComponent(title.trim())}&artist_name=${encodeURIComponent(cArtist)}`);
       urls.push(`https://lrclib.net/api/search?q=${encodeURIComponent(title.trim() + ' ' + cArtist)}`);
     }
 
     const fetchPromises = urls.map((u) =>
       fetch(u, { headers, signal: AbortSignal.timeout(3800) })
-        .then((res) => (res.ok ? (res.json() as Promise<LrcItem[]>) : []))
+        .then(async (res) => {
+          if (!res.ok) return [] as LrcItem[];
+          const json = await res.json();
+          if (Array.isArray(json)) return json as LrcItem[];
+          if (json && typeof json === 'object' && (json as LrcItem).id) return [json as LrcItem];
+          return [] as LrcItem[];
+        })
         .catch(() => [] as LrcItem[])
     );
 
@@ -432,6 +445,19 @@ export function nowPlayingPlugin(): Plugin {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Cache-Control', 'no-store');
+
+        if (cachedMediaInfo && cachedMediaInfo.title) {
+          const cleanTitle = cleanTrackTitle(cachedMediaInfo.title) || cachedMediaInfo.title.trim();
+          const cleanArtist = cleanArtistName(cachedMediaInfo.artist || '') || (cachedMediaInfo.artist || '').trim();
+          const trackKey = `${cleanTitle.toLowerCase()} - ${cleanArtist.toLowerCase()}`;
+          if (!cachedMediaInfo.lyrics && lyricsCache.has(trackKey)) {
+            cachedMediaInfo.lyrics = lyricsCache.get(trackKey);
+          }
+          if (!cachedMediaInfo.artwork && artworkCache.has(trackKey)) {
+            cachedMediaInfo.artwork = artworkCache.get(trackKey) || undefined;
+          }
+        }
+
         res.end(JSON.stringify(cachedMediaInfo || { status: 'idle' }));
       });
 
@@ -508,7 +534,7 @@ export function nowPlayingPlugin(): Plugin {
 
         try {
           const url = new URL(req.url || '', 'http://localhost');
-          const track = url.searchParams.get('track') || '';
+          const track = url.searchParams.get('track') || url.searchParams.get('title') || '';
           const artist = url.searchParams.get('artist') || '';
           const album = url.searchParams.get('album') || '';
           const durStr = url.searchParams.get('duration');
