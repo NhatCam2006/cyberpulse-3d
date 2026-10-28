@@ -15,10 +15,10 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ className = '' }) =>
 
   if (isLoading) {
     return (
-      <div className={`pointer-events-none select-none font-mono ${className}`}>
-        <div className="flex items-center gap-2 text-[8px] tracking-widest text-neutral-500 uppercase">
-          <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-ping" />
-          <span>DECODING TRANSMISSION // ACQUIRING LYRICS...</span>
+      <div className={`pointer-events-none select-none font-mono flex flex-col items-center justify-center ${className}`}>
+        <div className="flex items-center gap-1.5 text-[7.5px] tracking-[0.2em] text-neutral-500 uppercase">
+          <span className="w-1 h-1 rounded-full bg-white/40 animate-ping" />
+          <span>[ ◰ ACQUIRING LYRICS ]</span>
         </div>
       </div>
     );
@@ -29,31 +29,31 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ className = '' }) =>
   }
 
   return (
-    <div className={`pointer-events-none select-none font-mono flex flex-col gap-1 transition-all duration-300 ${className}`}>
-      {/* Telemetry Header */}
-      <div className="flex items-center gap-2 text-[8px] tracking-widest text-neutral-500 uppercase">
-        <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff] animate-pulse" />
-        <span>VOICE CARRIER // DECODED TRANSMISSION</span>
+    <div className={`pointer-events-none select-none font-mono flex flex-col items-center justify-center text-center transition-all duration-300 ${className}`}>
+      {/* Micro Telemetry Header */}
+      <div className="flex items-center gap-1.5 text-[7.5px] tracking-[0.25em] text-neutral-500 uppercase mb-0.5">
+        <span className="w-1 h-1 rounded-full bg-white shadow-[0_0_4px_#ffffff] animate-pulse" />
+        <span>VOICE CARRIER</span>
       </div>
 
       {/* Main Lyric Readout */}
       {isSynced ? (
-        <div className="flex flex-col gap-1 min-h-[48px] justify-center border-l-2 border-white/60 pl-3">
-          {/* Active Line */}
-          <div className="text-sm sm:text-base font-bold text-white tracking-wide transition-all duration-200 drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-            {activeLine ? activeLine.text : (lines.length > 0 ? '— — —' : '')}
+        <div className="flex flex-col items-center justify-center gap-0.5 max-w-lg px-2">
+          {/* Active Line (Compact, crisp white) */}
+          <div className="text-xs sm:text-[13px] font-semibold text-white tracking-wider leading-relaxed transition-all duration-200 drop-shadow-[0_0_8px_rgba(255,255,255,0.35)]">
+            {activeLine ? activeLine.text : (lines.length > 0 ? '• • •' : '')}
           </div>
 
-          {/* Next Line Preview */}
+          {/* Next Line Subtle Preview (Very faint, smaller) */}
           {nextLine && (
-            <div className="text-xs text-neutral-500 tracking-wider truncate max-w-lg transition-opacity duration-300 opacity-60">
+            <div className="text-[9.5px] text-neutral-500 tracking-wide truncate max-w-md opacity-45 transition-opacity duration-300">
               {nextLine.text}
             </div>
           )}
         </div>
       ) : (
-        /* Fallback for unsynced plain lyrics: display first few lines */
-        <div className="border-l-2 border-white/30 pl-3 text-xs text-neutral-400 max-w-md line-clamp-2">
+        /* Fallback for unsynced plain lyrics */
+        <div className="text-[11px] text-neutral-400 max-w-md line-clamp-2 px-2 text-center tracking-wide">
           {plainLyrics}
         </div>
       )}

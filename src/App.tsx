@@ -97,8 +97,8 @@ export const App: React.FC = () => {
       {/* Bottom Transport Player Deck */}
       <PlayerDeck />
 
-      {/* Real-time Synced Lyrics HUD */}
-      <SyncedLyrics className="absolute bottom-24 left-6 z-20 max-w-xl" />
+      {/* Real-time Synced Lyrics HUD - Compact & Centered */}
+      <SyncedLyrics className="absolute bottom-24 sm:bottom-28 left-1/2 -translate-x-1/2 z-20 w-full max-w-lg px-4" />
 
       {/* Drag & Drop Monochrome Overlay: NO backdrop-blur */}
       {isDragging && (
