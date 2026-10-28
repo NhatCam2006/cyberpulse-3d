@@ -12,6 +12,7 @@ export interface NowPlayingData {
   duration?: number;
   source?: string;
   artwork?: string;
+  lyrics?: LyricsResponse | null;
 }
 
 export interface LyricLine {
@@ -374,9 +375,11 @@ export function nowPlayingPlugin(): Plugin {
                   const data = JSON.parse(trimmed) as NowPlayingData;
                   if (data && data.title) {
                     const prevArtwork = cachedMediaInfo?.title === data.title ? cachedMediaInfo.artwork : undefined;
+                    const prevLyrics = cachedMediaInfo?.title === data.title ? cachedMediaInfo.lyrics : undefined;
                     cachedMediaInfo = {
                       ...data,
                       artwork: prevArtwork,
+                      lyrics: prevLyrics,
                     };
 
                     const cleanTitle = cleanTrackTitle(data.title) || data.title.trim();
@@ -401,8 +404,12 @@ export function nowPlayingPlugin(): Plugin {
                         }
                       }
 
-                      // Pre-fetch lyrics strictly once
-                      fetchLyricsForTrack(cleanTitle, cleanArtist, data.duration, data.album);
+                      // Pre-fetch lyrics and embed directly into cachedMediaInfo
+                      fetchLyricsForTrack(cleanTitle, cleanArtist, data.duration, data.album).then((lyr) => {
+                        if (lyr && cachedMediaInfo && cachedMediaInfo.title === data.title) {
+                          cachedMediaInfo.lyrics = lyr;
+                        }
+                      });
                     }
                   }
                 } catch {

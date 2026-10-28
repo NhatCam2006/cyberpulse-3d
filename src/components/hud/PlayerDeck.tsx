@@ -67,20 +67,25 @@ export const PlayerDeck: React.FC = () => {
             setLiveSmtcData(data);
             usePlayerStore.getState().setLiveTrackInfo(data.title, data.artist || 'SPOTIFY');
 
-            // Sync lyrics on track change or auto-heal/retry if previous attempt returned empty
-            const trackSig = `${data.title} - ${data.artist || ''}`;
-            const lyricsStore = useLyricsStore.getState();
-            const isDifferentTrack = lastFetchedLiveTrackRef.current !== trackSig;
-            const now = Date.now();
-            const shouldRetryEmpty =
-              lyricsStore.lines.length === 0 &&
-              !lyricsStore.isLoading &&
-              now - lastFetchAttemptTimeRef.current > 3000;
+            // Instant ingestion if lyrics already pre-fetched and embedded by server
+            if (data.lyrics && Array.isArray(data.lyrics.lines) && data.lyrics.lines.length > 0) {
+              useLyricsStore.getState().setSyncedData(data.title, data.artist || '', data.lyrics);
+            } else {
+              // Sync lyrics on track change or auto-heal/retry if previous attempt returned empty
+              const trackSig = `${data.title} - ${data.artist || ''}`;
+              const lyricsStore = useLyricsStore.getState();
+              const isDifferentTrack = lastFetchedLiveTrackRef.current !== trackSig;
+              const now = Date.now();
+              const shouldRetryEmpty =
+                lyricsStore.lines.length === 0 &&
+                !lyricsStore.isLoading &&
+                now - lastFetchAttemptTimeRef.current > 2500;
 
-            if (isDifferentTrack || shouldRetryEmpty) {
-              lastFetchedLiveTrackRef.current = trackSig;
-              lastFetchAttemptTimeRef.current = now;
-              useLyricsStore.getState().fetchLyrics(data.title, data.artist || '', data.duration, data.album);
+              if (isDifferentTrack || shouldRetryEmpty) {
+                lastFetchedLiveTrackRef.current = trackSig;
+                lastFetchAttemptTimeRef.current = now;
+                useLyricsStore.getState().fetchLyrics(data.title, data.artist || '', data.duration, data.album);
+              }
             }
           }
         }

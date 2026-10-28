@@ -18,6 +18,7 @@ export interface LyricsState {
   prevLine: LyricLine | null;
   nextLine: LyricLine | null;
   fetchLyrics: (title: string, artist: string, duration?: number, album?: string) => Promise<void>;
+  setSyncedData: (title: string, artist: string, data: { synced?: boolean; lines?: LyricLine[]; plainLyrics?: string | null }) => void;
   updateActiveLine: (currentTime: number) => void;
   reset: () => void;
 }
@@ -48,6 +49,27 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   activeLine: null,
   prevLine: null,
   nextLine: null,
+
+  setSyncedData: (title: string, artist: string, data: { synced?: boolean; lines?: LyricLine[]; plainLyrics?: string | null }) => {
+    if (!title || !title.trim()) return;
+    const cTitle = cleanTrackTitle(title) || title.trim();
+    const cArtist = cleanArtistName(artist) || (artist || '').trim();
+    const trackKey = `${cTitle.toLowerCase()} - ${cArtist.toLowerCase()}`;
+    const lines = data.lines || [];
+    set({
+      currentTrackKey: trackKey,
+      trackName: title,
+      artistName: artist,
+      isLoading: false,
+      isSynced: !!data.synced && lines.length > 0,
+      lines,
+      plainLyrics: data.plainLyrics || null,
+      activeLineIndex: -1,
+      activeLine: null,
+      prevLine: null,
+      nextLine: lines.length > 0 ? lines[0] : null,
+    });
+  },
 
   fetchLyrics: async (title: string, artist: string, duration?: number, album?: string) => {
     if (!title || !title.trim()) return;
