@@ -1,16 +1,10 @@
-import { useRef, useEffect, Suspense } from 'react';
+import { useRef, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { SolarSystemCore } from './concepts/SolarSystemCore';
-import { heliocentricPositions, solveKepler } from '../../utils/celestialMechanics';
-import {
-  HorizonSpacecraft,
-  horizonGlobalPosition,
-  horizonGlobalForward,
-  horizonGlobalRight,
-  horizonGlobalUp,
-} from './concepts/HorizonSpacecraft';
+import { heliocentricPositions } from '../../utils/celestialMechanics';
+import { HorizonSpacecraft } from './concepts/HorizonSpacecraft';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { AudioEngine } from '../../audio/AudioEngine';
 
@@ -33,95 +27,12 @@ const _camTarget = new THREE.Vector3();
 const _defaultTarget = new THREE.Vector3(0, 0, 0);
 const _camDir = new THREE.Vector3();
 const _sunDir = new THREE.Vector3();
-const _shipLookAt = new THREE.Vector3();
-const _currentLookAt = new THREE.Vector3(0, 0, 0);
-const _passengerCamPos = new THREE.Vector3();
-const _sunDirVec = new THREE.Vector3();
-const _lookDirVec = new THREE.Vector3();
-const _worldUp = new THREE.Vector3(0, 1, 0);
 
 const CameraRig = () => {
   const cameraMode = usePlayerStore(state => state.cameraMode);
   const selectedPlanet = usePlayerStore(state => state.selectedPlanet);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
-
-  // Elastic Inertial Head-Look (Left Click Drag with Hookean spring auto-centering)
-  const headLookRef = useRef({
-    isDragging: false,
-    lastX: 0,
-    lastY: 0,
-    targetYaw: 0,
-    targetPitch: 0,
-    currentYaw: 0,
-    currentPitch: 0,
-  });
-
-  useEffect(() => {
-    const handleMouseDown = (e: MouseEvent) => {
-      // Only active in spacecraft mode
-      if (usePlayerStore.getState().cameraMode !== 'spacecraft') return;
-      // Only left mouse button (e.button === 0)
-      if (e.button !== 0) return;
-      // Do not intercept clicks on interactive UI elements (buttons, inputs, sliders, drawers)
-      const target = e.target as HTMLElement | null;
-      if (target?.closest('button, input, select, textarea, [role="button"], a')) return;
-
-      headLookRef.current.isDragging = true;
-      headLookRef.current.lastX = e.clientX;
-      headLookRef.current.lastY = e.clientY;
-      document.body.style.cursor = 'grabbing';
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const hl = headLookRef.current;
-      if (!hl.isDragging) return;
-      if (usePlayerStore.getState().cameraMode !== 'spacecraft') return;
-
-      const dx = e.clientX - hl.lastX;
-      const dy = e.clientY - hl.lastY;
-      hl.lastX = e.clientX;
-      hl.lastY = e.clientY;
-
-      // Sensitivity: ~200px drag for full 28° yaw, ~140px drag for full 16° pitch
-      const yawSens = 0.0024;
-      const pitchSens = 0.0020;
-      const maxYaw = 0.488;   // 28 deg
-      const maxPitch = 0.279; // 16 deg
-
-      hl.targetYaw = THREE.MathUtils.clamp(hl.targetYaw + dx * yawSens, -maxYaw, maxYaw);
-      hl.targetPitch = THREE.MathUtils.clamp(hl.targetPitch - dy * pitchSens, -maxPitch, maxPitch);
-    };
-
-    const handleMouseUp = () => {
-      const hl = headLookRef.current;
-      if (hl.isDragging) {
-        hl.isDragging = false;
-        // Auto-return: reset target back to original forward vista
-        hl.targetYaw = 0;
-        hl.targetPitch = 0;
-        document.body.style.cursor = '';
-      }
-    };
-
-    const handleMouseLeave = () => {
-      handleMouseUp();
-    };
-
-    window.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('mouseleave', handleMouseLeave);
-    window.addEventListener('blur', handleMouseUp);
-    return () => {
-      window.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('mouseleave', handleMouseLeave);
-      window.removeEventListener('blur', handleMouseUp);
-      document.body.style.cursor = '';
-    };
-  }, []);
 
   // Cinematic Dolly Micro-Drift State (Climax / Drop recoil & smooth recovery)
   const climaxDriftRef = useRef({
@@ -271,52 +182,9 @@ const CameraRig = () => {
       }
     } else if (cameraMode === 'spacecraft') {
       // MODE 2: PASSENGER OBSERVATION DECK
-      // 1. Rigid 0-lag position lock into observation deck (ELIMINATES ALL CAMERA JITTER)
-      _passengerCamPos.copy(horizonGlobalPosition)
-        .addScaledVector(horizonGlobalForward, -0.075) // Trên đài quan sát vòm
-        .addScaledVector(horizonGlobalUp, 0.052)       // Độ cao tầm mắt trên sàn boong
-        .addScaledVector(horizonGlobalRight, 0.025);   // Chếch nhẹ mạn phải tạo bố cục điện ảnh
-
-      state.camera.position.copy(_passengerCamPos);
-
-      // 2. Base Forward flight orientation
-      if (selectedPlanet && heliocentricPositions[selectedPlanet]) {
-        // Celestial Close-Orbit Vista (Pillar V of Colossal Scale):
-        // Vector towards planet center
-        _sunDirVec.copy(heliocentricPositions[selectedPlanet]).sub(_passengerCamPos).normalize();
-        
-        // Blend 48% towards planet center and 52% along prograde flight path,
-        // causing the colossal planetary limb and swirling cloud deck to sweep diagonally across the canopy!
-        _lookDirVec.copy(horizonGlobalForward).multiplyScalar(0.52)
-          .addScaledVector(_sunDirVec, 0.48)
-          .addScaledVector(horizonGlobalUp, -0.06)
-          .normalize();
-      } else {
-        // Grand Tour overview: forward sightline towards Sol and outer celestial vista
-        _sunDirVec.copy(horizonGlobalPosition).negate().normalize();
-        _lookDirVec.copy(horizonGlobalForward).multiplyScalar(0.42)
-          .addScaledVector(_sunDirVec, 0.58)
-          .normalize();
-      }
-
-      // 3. Elastic Inertial Head-Look (Left-Click Drag with Hookean spring auto-centering)
-      const hl = headLookRef.current;
-      // Snappy and responsive while actively dragging (14.0 * delta);
-      // Gentle, elegant floating return when released (5.2 * delta)
-      const springRate = Math.min(1.0, hl.isDragging ? delta * 14.0 : delta * 5.2);
-      hl.currentYaw += (hl.targetYaw - hl.currentYaw) * springRate;
-      hl.currentPitch += (hl.targetPitch - hl.currentPitch) * springRate;
-
-      _lookDirVec
-        .addScaledVector(horizonGlobalRight, Math.sin(hl.currentYaw))
-        .addScaledVector(horizonGlobalUp, Math.sin(hl.currentPitch))
-        .normalize();
-
-      _shipLookAt.copy(_passengerCamPos).addScaledVector(_lookDirVec, 10.0);
-
-      // Trục Up bám theo sàn tàu, triệt tiêu hoàn toàn rung lắc
-      state.camera.up.copy(horizonGlobalUp);
-      state.camera.lookAt(_shipLookAt);
+      // Synchronously locked to SS Horizon in HorizonSpacecraft.tsx in the exact same render tick.
+      // Guarantees strict 0-lag, 0-GC, 0-jitter, and zero rocking/wobbling.
+      return;
     } else {
       // MODE 3: FREE ORBIT (Manual mouse inspection)
       state.camera.up.set(0, 1, 0);

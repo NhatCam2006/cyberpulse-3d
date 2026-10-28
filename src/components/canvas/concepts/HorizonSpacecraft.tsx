@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
@@ -99,7 +99,7 @@ export function computeHorizonOrbitalPosition(
   return r;
 }
 
-// Global 0-GC state vectors shared with CameraRig & Observation Deck in VisualizerCanvas
+// Global 0-GC state vectors shared with Observation Deck
 export const horizonGlobalPosition = new THREE.Vector3();
 export const horizonGlobalForward = new THREE.Vector3(0, 0, 1);
 export const horizonGlobalRight = new THREE.Vector3(1, 0, 0);
@@ -108,13 +108,36 @@ export const horizonGlobalUp = new THREE.Vector3(0, 1, 0);
 // Static math objects (0 GC in useFrame)
 const _shipPos = new THREE.Vector3();
 const _shipNextPos = new THREE.Vector3();
-const _shipVel = new THREE.Vector3();
 const _shipForward = new THREE.Vector3();
-const _shipWorldUp = new THREE.Vector3(0, 1, 0);
 const _shipRight = new THREE.Vector3();
 const _dynamicUp = new THREE.Vector3();
 const _rotMatrix = new THREE.Matrix4();
 const _targetQuat = new THREE.Quaternion();
+
+// Passenger Camera Rigid Kinematics (0-GC, 0-Lag, 0-Jitter)
+const _passengerCamPos = new THREE.Vector3();
+const _camTarget = new THREE.Vector3();
+const _lookDirLocal = new THREE.Vector3();
+const _lookDirWorld = new THREE.Vector3();
+const _rotPitch = new THREE.Quaternion();
+const _rotYaw = new THREE.Quaternion();
+const _headRot = new THREE.Quaternion();
+const _pitchAxis = new THREE.Vector3(1, 0, 0);
+const _yawAxis = new THREE.Vector3(0, 1, 0);
+
+// Mathematical Invariants:
+// Local camera position on observation deck:
+// -0.075 along ship forward, +0.052 along ship up, +0.025 along ship starboard
+const LOCAL_CAM_OFFSET = new THREE.Vector3(0.025, 0.052, -0.075);
+
+// Base sightline in ship's local coordinates:
+// Viewing diagonally forward-port across the canopy window towards the passing planet
+const BASE_LOOK_PLANET = new THREE.Vector3(-0.48, -0.06, 0.52).normalize();
+const BASE_LOOK_GRAND_TOUR = new THREE.Vector3(-0.42, -0.04, 0.58).normalize();
+
+// Invariant Grand Tour Orbit Normal:
+// Calculated analytically from Keplerian inclination (8.5°) and ascending node (45.0°)
+const GRAND_TOUR_NORMAL = new THREE.Vector3(0.104528, 0.989016, -0.104528).normalize();
 
 // Preload the Draco model
 useGLTF.preload('/models/erizon_draco.glb', '/draco/gltf/');
@@ -123,6 +146,78 @@ export const HorizonSpacecraft: React.FC = () => {
   const { scene } = useGLTF('/models/erizon_draco.glb', '/draco/gltf/');
   const shipGroupRef = useRef<THREE.Group>(null);
   const selectedPlanet = usePlayerStore(state => state.selectedPlanet);
+  const cameraMode = usePlayerStore(state => state.cameraMode);
+
+  // Elastic Inertial Head-Look (Left-drag with Hookean spring return)
+  const headLookRef = useRef({
+    currentYaw: 0,
+    currentPitch: 0,
+    targetYaw: 0,
+    targetPitch: 0,
+    isDragging: false,
+    lastX: 0,
+    lastY: 0,
+  });
+
+  useEffect(() => {
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return; // Left mouse button only
+      if (usePlayerStore.getState().cameraMode !== 'spacecraft') return;
+
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('button, input, select, textarea, [role="button"], a')) return;
+
+      const hl = headLookRef.current;
+      hl.isDragging = true;
+      hl.lastX = e.clientX;
+      hl.lastY = e.clientY;
+      document.body.style.cursor = 'grabbing';
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const hl = headLookRef.current;
+      if (!hl.isDragging) return;
+      if (usePlayerStore.getState().cameraMode !== 'spacecraft') return;
+
+      const dx = e.clientX - hl.lastX;
+      const dy = e.clientY - hl.lastY;
+      hl.lastX = e.clientX;
+      hl.lastY = e.clientY;
+
+      const yawSens = 0.0024;
+      const pitchSens = 0.0020;
+      const maxYaw = 0.488;   // 28 deg
+      const maxPitch = 0.279; // 16 deg
+
+      hl.targetYaw = THREE.MathUtils.clamp(hl.targetYaw + dx * yawSens, -maxYaw, maxYaw);
+      hl.targetPitch = THREE.MathUtils.clamp(hl.targetPitch - dy * pitchSens, -maxPitch, maxPitch);
+    };
+
+    const handleMouseUp = () => {
+      const hl = headLookRef.current;
+      if (hl.isDragging) {
+        hl.isDragging = false;
+        hl.targetYaw = 0;
+        hl.targetPitch = 0;
+        document.body.style.cursor = '';
+      }
+    };
+
+    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('mouseleave', handleMouseUp);
+    window.addEventListener('blur', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('mouseleave', handleMouseUp);
+      window.removeEventListener('blur', handleMouseUp);
+      document.body.style.cursor = '';
+    };
+  }, []);
 
   // Pre-process and scale model for astronomical visualizer scale
   const clonedScene = useMemo(() => {
@@ -150,38 +245,127 @@ export const HorizonSpacecraft: React.FC = () => {
     return clone;
   }, [scene]);
 
-  useFrame(state => {
+  useFrame((state, delta) => {
     if (!shipGroupRef.current) return;
     const time = state.clock.elapsedTime;
+    const activeCameraMode = usePlayerStore.getState().cameraMode;
 
-    // 1. Compute exact Keplerian or Low-Orbit position
-    computeHorizonOrbitalPosition(time, _shipPos, selectedPlanet);
-    computeHorizonOrbitalPosition(time + 0.12, _shipNextPos, selectedPlanet);
+    // 1. Orbital Kinematics & Coordinate Basis
+    if (selectedPlanet && heliocentricPositions[selectedPlanet]) {
+      const pCenter = heliocentricPositions[selectedPlanet];
 
-    // 2. Physical flight velocity & prograde orientation
-    _shipVel.subVectors(_shipNextPos, _shipPos).normalize();
-    _shipForward.copy(_shipVel);
+      let flybyR = 0.45;
+      let flybyPeriod = 38.0;
+      let flybyInc = (22.5 * Math.PI) / 180;
 
-    // 3. Orthonormal Right-Handed Coordinate Frame (Det = +1, Không lật ảnh, Không rung lắc)
-    _shipRight.crossVectors(_shipWorldUp, _shipForward).normalize();
-    _dynamicUp.crossVectors(_shipForward, _shipRight).normalize();
+      if (selectedPlanet === 'Sol') {
+        flybyR = 1.95;
+        flybyPeriod = 48.0;
+        flybyInc = (15.0 * Math.PI) / 180;
+      } else {
+        const ephem =
+          JPL_PLANETS.find(p => p.name === selectedPlanet) ||
+          DWARF_PLANETS.find(p => p.name === selectedPlanet);
+        const visR = ephem ? getVisualPlanetRadius(ephem.radius_km, ephem.isGasGiant) : 0.25;
 
+        if (selectedPlanet === 'Saturn') {
+          flybyR = visR * 2.15;
+          flybyInc = (26.5 * Math.PI) / 180;
+          flybyPeriod = 42.0;
+        } else {
+          flybyR = visR * 1.45;
+          flybyInc = (22.0 * Math.PI) / 180;
+          flybyPeriod = 36.0;
+        }
+      }
+
+      const phi = ((time % flybyPeriod) / flybyPeriod) * Math.PI * 2;
+      const xRel = flybyR * Math.cos(phi);
+      const zRel = flybyR * Math.sin(phi) * Math.cos(flybyInc);
+      const yRel = flybyR * Math.sin(phi) * Math.sin(flybyInc);
+
+      _shipPos.set(pCenter.x + xRel, pCenter.y + yRel, pCenter.z + zRel);
+
+      // Analytical Velocity Vector (Prograde flight direction)
+      _shipForward.set(
+        -Math.sin(phi),
+        Math.cos(phi) * Math.sin(flybyInc),
+        Math.cos(phi) * Math.cos(flybyInc)
+      ).normalize();
+
+      // Analytical Orbital Plane Normal: 100% CONSTANT IN TIME (Zero roll oscillation / Triệt tiêu lắc lư)
+      _dynamicUp.set(0, Math.cos(flybyInc), -Math.sin(flybyInc)).normalize();
+
+      // Right Vector: points radially outward from planet center
+      _shipRight.crossVectors(_dynamicUp, _shipForward).normalize();
+    } else {
+      // Grand Tour Cruise
+      computeHorizonOrbitalPosition(time, _shipPos, null);
+      computeHorizonOrbitalPosition(time + 0.01, _shipNextPos, null);
+
+      _shipForward.subVectors(_shipNextPos, _shipPos).normalize();
+      _dynamicUp.copy(GRAND_TOUR_NORMAL);
+      _shipRight.crossVectors(_dynamicUp, _shipForward).normalize();
+      _dynamicUp.crossVectors(_shipForward, _shipRight).normalize();
+    }
+
+    // Assemble Orthonormal Right-Handed Coordinate Basis (Det = +1, no flipping, no jitter)
     _rotMatrix.makeBasis(_shipRight, _dynamicUp, _shipForward);
     _targetQuat.setFromRotationMatrix(_rotMatrix);
 
-    // 4. Update ship transform - EXACT SYNCHRONIZATION WITH CAMERA (ZERO JITTER)
+    // Update physical ship mesh
     shipGroupRef.current.position.copy(_shipPos);
     shipGroupRef.current.quaternion.copy(_targetQuat);
 
-    // 5. Derive global vectors directly from the exact synchronized quaternion
-    _shipForward.set(0, 0, 1).applyQuaternion(_targetQuat);
-    _shipRight.set(1, 0, 0).applyQuaternion(_targetQuat);
-    _dynamicUp.set(0, 1, 0).applyQuaternion(_targetQuat);
-
+    // Sync global vectors
     horizonGlobalPosition.copy(_shipPos);
     horizonGlobalForward.copy(_shipForward);
     horizonGlobalRight.copy(_shipRight);
     horizonGlobalUp.copy(_dynamicUp);
+
+    // 2. Synchronous Passenger Deck Camera Lock (Strict 0-Lag, 0-GC, 0-Jitter, 0-Wobble)
+    if (activeCameraMode === 'spacecraft') {
+      // Rigidly mount camera to the observation deck in the exact same render frame
+      _passengerCamPos.copy(_shipPos)
+        .addScaledVector(_shipForward, LOCAL_CAM_OFFSET.z)
+        .addScaledVector(_dynamicUp, LOCAL_CAM_OFFSET.y)
+        .addScaledVector(_shipRight, LOCAL_CAM_OFFSET.x);
+
+      state.camera.position.copy(_passengerCamPos);
+
+      // Local sightline: base vista angle looking diagonally towards the colossal planet
+      const baseLook = (selectedPlanet && heliocentricPositions[selectedPlanet])
+        ? BASE_LOOK_PLANET
+        : BASE_LOOK_GRAND_TOUR;
+      _lookDirLocal.copy(baseLook);
+
+      // Elastic head-look yaw & pitch
+      const hl = headLookRef.current;
+      const springRate = Math.min(1.0, hl.isDragging ? delta * 14.0 : delta * 5.2);
+      hl.currentYaw += (hl.targetYaw - hl.currentYaw) * springRate;
+      hl.currentPitch += (hl.targetPitch - hl.currentPitch) * springRate;
+
+      _rotPitch.setFromAxisAngle(_pitchAxis, -hl.currentPitch);
+      _rotYaw.setFromAxisAngle(_yawAxis, hl.currentYaw);
+      _headRot.multiplyQuaternions(_rotYaw, _rotPitch);
+      _lookDirLocal.applyQuaternion(_headRot);
+
+      // Transform sightline to world orientation
+      _lookDirWorld.copy(_lookDirLocal).applyQuaternion(_targetQuat);
+      _camTarget.copy(_passengerCamPos).addScaledVector(_lookDirWorld, 10.0);
+
+      state.camera.up.copy(_dynamicUp);
+      state.camera.lookAt(_camTarget);
+
+      // Rigid 52° FOV
+      if ('fov' in state.camera) {
+        const persCam = state.camera as THREE.PerspectiveCamera;
+        if (Math.abs(persCam.fov - 52.0) > 0.01) {
+          persCam.fov = 52.0;
+          persCam.updateProjectionMatrix();
+        }
+      }
+    }
   });
 
   return (
