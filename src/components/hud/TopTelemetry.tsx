@@ -35,6 +35,7 @@ const CELESTIAL_BODIES = [
 export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDrawerOpen }) => {
   const [fps, setFps] = useState<number>(60);
   const [showPlanetMenu, setShowPlanetMenu] = useState<boolean>(false);
+  const [showCompactMenu, setShowCompactMenu] = useState<boolean>(false);
 
   const cameraMode = usePlayerStore(state => state.cameraMode);
   const setCameraMode = usePlayerStore(state => state.setCameraMode);
@@ -42,6 +43,8 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
   const selectedPlanet = usePlayerStore(state => state.selectedPlanet);
   const setSelectedPlanet = usePlayerStore(state => state.setSelectedPlanet);
   const trackCount = usePlayerStore(state => state.tracks.length);
+  const isLiveInput = usePlayerStore(state => state.isLiveInput);
+  const toggleSystemAudio = usePlayerStore(state => state.toggleSystemAudio);
 
   // Direct DOM Refs for 60FPS telemetry (ZERO React re-renders)
   const bassBarRef = useRef<HTMLDivElement>(null);
@@ -199,23 +202,20 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
         </div>
       </div>
 
-      {/* Center Section: Pure Floating Reticle Coordinates */}
-      <div className="hidden md:flex items-center gap-2 font-mono text-[9.5px] tracking-[0.25em] text-neutral-400 select-none pt-0.5">
-        <span className="text-white/30">+</span>
-        <span className="text-neutral-300 font-semibold">SOLAR SYSTEM</span>
-        <span className="text-neutral-600">//</span>
-        <span className="text-neutral-500">DE440 EPHEMERIS</span>
-        <span className="text-white/30">+</span>
-      </div>
+      {/* Center Spacer: Pure Floating Horizon (No clutter) */}
+      <div className="flex-1" />
 
       {/* Right Section: Compact Swiss Brutalist Controls (Matching Right Flank border-r) */}
-      <div className="flex flex-col items-end gap-1 border-r border-white/20 pr-2.5 font-mono pointer-events-auto">
+      <div className="flex items-center gap-3 border-r border-white/20 pr-2.5 font-mono pointer-events-auto">
         <div className="flex items-center gap-3 text-xs">
           
           {/* Planet Inspection Selector Popover */}
           <div className="relative">
             <button
-              onClick={() => setShowPlanetMenu(!showPlanetMenu)}
+              onClick={() => {
+                setShowPlanetMenu(!showPlanetMenu);
+                setShowCompactMenu(false);
+              }}
               title="Select Celestial Body to Inspect"
               className={`flex items-center gap-1 text-[10px] tracking-widest font-mono uppercase transition-colors cursor-pointer py-0.5 ${
                 selectedPlanet ? 'text-white font-bold' : 'text-neutral-400 hover:text-white'
@@ -238,43 +238,49 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
 
             {/* Celestial Bodies Grid Popover */}
             {showPlanetMenu && (
-              <div className="absolute right-0 mt-2 w-64 rounded bg-[#08080c]/95 border border-white/20 shadow-2xl p-2.5 z-50 flex flex-col gap-1 font-mono text-xs backdrop-blur-md">
-                <div className="flex items-center justify-between px-1.5 py-1 text-[10px] text-neutral-400 uppercase tracking-wider font-semibold border-b border-white/10">
-                  <span>MISSION CONTROL</span>
-                  <button
-                    onClick={() => {
-                      setSelectedPlanet(null);
-                      setShowPlanetMenu(false);
-                    }}
-                    className="text-neutral-400 hover:text-white text-[9px] underline cursor-pointer"
-                  >
-                    [ OVERVIEW ]
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-1 mt-1 max-h-64 overflow-y-auto pr-1">
-                  {CELESTIAL_BODIES.map((body) => (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowPlanetMenu(false)}
+                />
+                <div className="absolute right-0 mt-2 w-64 rounded bg-[#08080c]/95 border border-white/20 shadow-2xl p-2.5 z-50 flex flex-col gap-1 font-mono text-xs backdrop-blur-md">
+                  <div className="flex items-center justify-between px-1.5 py-1 text-[10px] text-neutral-400 uppercase tracking-wider font-semibold border-b border-white/10">
+                    <span>MISSION CONTROL</span>
                     <button
-                      key={body.name}
                       onClick={() => {
-                        setSelectedPlanet(body.name);
+                        setSelectedPlanet(null);
                         setShowPlanetMenu(false);
                       }}
-                      className={`flex items-center justify-between px-2 py-1.5 rounded text-left transition-colors cursor-pointer ${
-                        selectedPlanet === body.name
-                          ? 'bg-white/20 text-white font-bold border border-white/30'
-                          : 'hover:bg-white/5 text-neutral-300 hover:text-white'
-                      }`}
+                      className="text-neutral-400 hover:text-white text-[9px] underline cursor-pointer"
                     >
-                      <span className="flex items-center gap-1.5 text-[11px]">
-                        <span className="text-neutral-400 text-xs">{body.symbol}</span>
-                        <span>{body.name}</span>
-                      </span>
-                      <span className="text-[8px] text-neutral-500">{body.type}</span>
+                      [ OVERVIEW ]
                     </button>
-                  ))}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1 mt-1 max-h-64 overflow-y-auto pr-1">
+                    {CELESTIAL_BODIES.map((body) => (
+                      <button
+                        key={body.name}
+                        onClick={() => {
+                          setSelectedPlanet(body.name);
+                          setShowPlanetMenu(false);
+                        }}
+                        className={`flex items-center justify-between px-2 py-1.5 rounded text-left transition-colors cursor-pointer ${
+                          selectedPlanet === body.name
+                            ? 'bg-white/20 text-white font-bold border border-white/30'
+                            : 'hover:bg-white/5 text-neutral-300 hover:text-white'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5 text-[11px]">
+                          <span className="text-neutral-400 text-xs">{body.symbol}</span>
+                          <span>{body.name}</span>
+                        </span>
+                        <span className="text-[8px] text-neutral-500">{body.type}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
 
@@ -299,20 +305,80 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
             <span>[ {cameraMode === 'vista' ? 'VISTA' : cameraMode === 'spacecraft' ? 'PASSENGER DECK' : 'ORBIT'} ]</span>
           </button>
 
-          {/* Track Drawer Button */}
-          <button
-            onClick={onToggleDrawer}
-            title="Open Track Archive"
-            className={`flex items-center gap-1 text-[10px] tracking-widest font-mono uppercase transition-colors cursor-pointer py-0.5 ${
-              isDrawerOpen ? 'text-white font-bold' : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            <span>[ ARCHIVE {trackCount > 0 ? `// 0${trackCount}` : ''} ]</span>
-          </button>
-        </div>
+          {/* Compact System & Audio Menu */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setShowCompactMenu(!showCompactMenu);
+                setShowPlanetMenu(false);
+              }}
+              title="System Menu & Audio Feed"
+              className={`flex items-center gap-1.5 text-[10px] tracking-widest font-mono uppercase transition-colors cursor-pointer py-0.5 ${
+                showCompactMenu || isLiveInput ? 'text-white font-bold' : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              {isLiveInput && (
+                <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff] animate-pulse" />
+              )}
+              <span>[ {isLiveInput ? 'LIVE ON ▾' : 'MENU ▾'} ]</span>
+            </button>
 
-        <div className="text-[8.5px] text-neutral-500 tracking-widest">
-          OPTICAL GRATICULE // 46° FOV
+            {/* Compact Popover Dropdown */}
+            {showCompactMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowCompactMenu(false)}
+                />
+                <div className="absolute right-0 mt-2 w-60 rounded bg-[#08080c]/95 border border-white/20 shadow-2xl p-2.5 z-50 flex flex-col gap-2 font-mono text-xs backdrop-blur-md">
+                  <div className="flex items-center justify-between px-1 text-[8.5px] text-neutral-400 uppercase tracking-widest border-b border-white/10 pb-1">
+                    <span>AUDIO FEED</span>
+                    {isLiveInput && (
+                      <span className="text-white font-semibold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff] animate-pulse" />
+                        ACTIVE
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      toggleSystemAudio();
+                      setShowCompactMenu(false);
+                    }}
+                    className={`w-full py-1.5 px-2.5 rounded text-[10px] uppercase tracking-wider font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                      isLiveInput
+                        ? 'bg-white/20 text-white hover:bg-white/30 border border-white/30 shadow-[0_0_8px_rgba(255,255,255,0.2)]'
+                        : 'bg-white/10 text-white hover:bg-white/20 border border-white/15'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        isLiveInput
+                          ? 'bg-white shadow-[0_0_6px_#ffffff] animate-pulse'
+                          : 'bg-neutral-500'
+                      }`}
+                    />
+                    <span>{isLiveInput ? 'DISCONNECT SPOTIFY' : 'SPOTIFY IN (SHARE AUDIO)'}</span>
+                  </button>
+
+                  <div className="border-t border-white/10 pt-1">
+                    <button
+                      onClick={() => {
+                        onToggleDrawer();
+                        setShowCompactMenu(false);
+                      }}
+                      className="w-full text-left px-2 py-1.5 rounded hover:bg-white/10 text-neutral-300 hover:text-white transition-colors cursor-pointer text-[10px] flex items-center justify-between"
+                    >
+                      <span>TRACK ARCHIVE</span>
+                      <span className="text-neutral-500 text-[8px]">{trackCount} TRACKS</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
         </div>
       </div>
 

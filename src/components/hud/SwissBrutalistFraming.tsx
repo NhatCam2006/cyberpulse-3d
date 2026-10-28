@@ -54,33 +54,6 @@ export const SwissBrutalistFraming: React.FC = () => {
         isSpacecraft ? 'opacity-0' : 'opacity-100'
       }`}
     >
-      {/* 4 Corner Crosshair Reticles (+) */}
-      <div className="opacity-60">
-        {/* Top-Left */}
-        <div className="absolute top-16 left-6 flex items-center gap-1.5 text-neutral-500 text-[10px] tracking-widest">
-          <span className="text-white text-xs font-bold">+</span>
-          {SOLAR_FRAMING.topLeft && <span>{SOLAR_FRAMING.topLeft}</span>}
-        </div>
-
-        {/* Top-Right */}
-        <div className="absolute top-16 right-6 flex items-center gap-1.5 text-neutral-500 text-[10px] tracking-widest">
-          <span>{SOLAR_FRAMING.topRight}</span>
-          <span className="text-white text-xs font-bold">+</span>
-        </div>
-
-        {/* Bottom-Left */}
-        <div className="absolute bottom-24 left-6 flex items-center gap-1.5 text-neutral-500 text-[10px] tracking-widest">
-          <span className="text-white text-xs font-bold">+</span>
-          <span>{SOLAR_FRAMING.bottomLeft}</span>
-        </div>
-
-        {/* Bottom-Right */}
-        <div className="absolute bottom-24 right-6 flex items-center gap-1.5 text-neutral-500 text-[10px] tracking-widest">
-          <span>{SOLAR_FRAMING.bottomRight}</span>
-          <span className="text-white text-xs font-bold">+</span>
-        </div>
-      </div>
-
       {/* Left Flank Technical Readout */}
       <div className="hidden lg:flex absolute left-6 top-1/2 -translate-y-1/2 flex-col gap-2 text-[9px] tracking-widest text-neutral-500 border-l border-white/10 pl-2">
         <div className="text-[8px] text-neutral-600 uppercase">{SOLAR_FRAMING.leftHeader}</div>

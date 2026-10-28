@@ -453,19 +453,25 @@ export const PlayerDeck: React.FC = () => {
                 ? currentTrack.title.toUpperCase()
                 : 'STANDBY'}
             </div>
-            <div className="text-[9.5px] text-neutral-400 tracking-wider truncate max-w-[200px] sm:max-w-[260px] md:max-w-xs mt-0.5">
+            <div
+              className={`text-[9.5px] text-neutral-400 tracking-wider truncate max-w-[200px] sm:max-w-[260px] md:max-w-xs mt-0.5 ${
+                !isLiveInput && !isPlaying ? 'cursor-pointer hover:text-white transition-colors' : ''
+              }`}
+              onClick={!isLiveInput && !isPlaying ? toggleSystemAudio : undefined}
+              title={!isLiveInput && !isPlaying ? 'Click to connect Spotify / share audio' : undefined}
+            >
               {isLiveInput && liveSmtcData?.title
                 ? (liveSmtcData.artist || 'DESKTOP AUDIO').toUpperCase()
                 : isPlaying && currentTrack
                 ? currentTrack.artist.toUpperCase()
-                : 'CLICK [SPOTIFY IN] TO SHARE AUDIO'}
+                : 'CLICK TO CONNECT SPOTIFY'}
             </div>
           </div>
         </div>
 
         {/* Bottom-Center: Pure Typographic Audio Controls */}
-        <div className="flex flex-col items-center gap-1.5 pointer-events-auto select-none">
-          <div className="flex items-center gap-2.5">
+        <div className="flex flex-col items-center justify-center h-11 gap-1.5 pointer-events-auto select-none">
+          <div className="flex items-center gap-3">
             {/* Prev */}
             <button
               onClick={handlePlayPrev}
@@ -502,37 +508,6 @@ export const PlayerDeck: React.FC = () => {
             >
               [ ▷| ]
             </button>
-
-            <span className="text-white/20 text-xs select-none">|</span>
-
-            {/* Live Input / Spotify System Audio Button */}
-            <button
-              onClick={toggleSystemAudio}
-              className={`px-2 py-0.5 text-[9px] font-mono tracking-widest uppercase border transition-all cursor-pointer flex items-center gap-1.5 ${
-                isLiveInput
-                  ? 'border-white/60 bg-white/10 text-white shadow-[0_0_8px_rgba(255,255,255,0.2)]'
-                  : 'border-white/20 hover:border-white/60 text-neutral-400 hover:text-white bg-transparent hover:bg-white/5'
-              }`}
-              title={
-                isLiveInput
-                  ? 'Live Stream Active. Click to Disconnect.'
-                  : "Stream Live Audio from Spotify / Desktop (Check 'Share audio')"
-              }
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full transition-all ${
-                  isLiveInput
-                    ? 'bg-white shadow-[0_0_6px_#ffffff] animate-pulse'
-                    : 'bg-neutral-600'
-                }`}
-              />
-              <span>{isLiveInput ? 'LIVE ON' : 'SPOTIFY IN'}</span>
-              {isLiveInput && (
-                <span className="text-neutral-400 hover:text-white text-[8px] ml-0.5">
-                  [DISCONNECT]
-                </span>
-              )}
-            </button>
           </div>
 
           {/* Elapsed / Duration Timestamp */}
@@ -567,10 +542,7 @@ export const PlayerDeck: React.FC = () => {
         </div>
 
         {/* Bottom-Right: Master Stage & Gain Slider (Matches Right Flank border-r) */}
-        <div className="flex flex-col items-end gap-0.5 border-r border-white/20 pr-2.5 text-right pointer-events-auto">
-          <div className="text-[8px] text-neutral-500 uppercase tracking-widest">
-            OUTPUT STAGE // MASTER
-          </div>
+        <div className="flex flex-col justify-center h-11 items-end border-r border-white/20 pr-2.5 text-right pointer-events-auto">
           <div className="flex items-center gap-2 text-[10px] tracking-wider my-0.5">
             <button
               onClick={handleToggleMute}
@@ -601,9 +573,6 @@ export const PlayerDeck: React.FC = () => {
             <span className="text-white font-bold text-[9px] w-7 text-right">
               {isMuted ? '0%' : `${Math.round(volume * 100)}%`}
             </span>
-          </div>
-          <div className="text-[8px] text-neutral-500 tracking-widest">
-            48.0 KHZ // 24-BIT STEREO
           </div>
         </div>
       </div>
