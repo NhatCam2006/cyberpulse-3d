@@ -3,6 +3,7 @@ import { VisualizerCanvas } from './components/canvas/VisualizerCanvas';
 import { TopTelemetry } from './components/hud/TopTelemetry';
 import { TrackDrawer } from './components/hud/TrackDrawer';
 import { PlayerDeck } from './components/hud/PlayerDeck';
+import { SyncedLyrics } from './components/hud/SyncedLyrics';
 import { SwissBrutalistFraming } from './components/hud/SwissBrutalistFraming';
 import { SpacecraftObservationDeck } from './components/hud/SpacecraftObservationDeck';
 import { SpacecraftHangar } from './components/hangar/SpacecraftHangar';
@@ -95,6 +96,9 @@ export const App: React.FC = () => {
 
       {/* Bottom Transport Player Deck */}
       <PlayerDeck />
+
+      {/* Real-time Synced Lyrics HUD */}
+      <SyncedLyrics className="absolute bottom-24 left-6 z-20 max-w-xl" />
 
       {/* Drag & Drop Monochrome Overlay: NO backdrop-blur */}
       {isDragging && (

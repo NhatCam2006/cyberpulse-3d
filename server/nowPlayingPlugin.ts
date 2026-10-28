@@ -14,8 +14,162 @@ export interface NowPlayingData {
   artwork?: string;
 }
 
+export interface LyricLine {
+  time: number;
+  text: string;
+}
+
+export interface LyricsResponse {
+  trackName?: string;
+  artistName?: string;
+  synced: boolean;
+  lines: LyricLine[];
+  plainLyrics?: string;
+}
+
 const artworkCache = new Map<string, string | null>();
-const pendingFetches = new Set<string>();
+const pendingArtworkFetches = new Set<string>();
+
+const lyricsCache = new Map<string, LyricsResponse | null>();
+const pendingLyricsFetches = new Set<string>();
+
+function parseLrc(lrcText: string): LyricLine[] {
+  const lines = lrcText.split('\n');
+  const result: LyricLine[] = [];
+  const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
+
+  for (const line of lines) {
+    const match = timeRegex.exec(line);
+    if (match) {
+      const min = parseInt(match[1], 10);
+      const sec = parseInt(match[2], 10);
+      const ms = parseFloat('0.' + match[3]);
+      const time = min * 60 + sec + ms;
+      const text = line.replace(timeRegex, '').trim();
+      if (text) {
+        result.push({ time, text });
+      }
+    }
+  }
+
+  return result.sort((a, b) => a.time - b.time);
+}
+
+async function fetchLyricsForTrack(title: string, artist: string, duration?: number): Promise<LyricsResponse | null> {
+  const cleanTitle = title.replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
+  const cleanArtist = artist.replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
+  const cacheKey = `${cleanTitle.toLowerCase()} - ${cleanArtist.toLowerCase()}`;
+
+  if (lyricsCache.has(cacheKey)) {
+    return lyricsCache.get(cacheKey) || null;
+  }
+  if (pendingLyricsFetches.has(cacheKey)) {
+    return null;
+  }
+
+  pendingLyricsFetches.add(cacheKey);
+
+  try {
+    const headers = { 'User-Agent': 'Cyberpulse3D/1.0.0 (https://github.com/NhatCam2006/cyberpulse-3d)' };
+
+    // 1. Try exact match on lrclib.net /api/get
+    let getUrl = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle)}&artist_name=${encodeURIComponent(cleanArtist)}`;
+    if (duration && duration > 0) {
+      getUrl += `&duration=${Math.round(duration)}`;
+    }
+
+    try {
+      const res = await fetch(getUrl, { headers, signal: AbortSignal.timeout(4000) });
+      if (res.ok) {
+        const json = (await res.json()) as {
+          trackName?: string;
+          artistName?: string;
+          syncedLyrics?: string;
+          plainLyrics?: string;
+        };
+
+        if (json.syncedLyrics) {
+          const lines = parseLrc(json.syncedLyrics);
+          const response: LyricsResponse = {
+            trackName: json.trackName || title,
+            artistName: json.artistName || artist,
+            synced: true,
+            lines,
+            plainLyrics: json.plainLyrics,
+          };
+          lyricsCache.set(cacheKey, response);
+          pendingLyricsFetches.delete(cacheKey);
+          return response;
+        } else if (json.plainLyrics) {
+          const response: LyricsResponse = {
+            trackName: json.trackName || title,
+            artistName: json.artistName || artist,
+            synced: false,
+            lines: [],
+            plainLyrics: json.plainLyrics,
+          };
+          lyricsCache.set(cacheKey, response);
+          pendingLyricsFetches.delete(cacheKey);
+          return response;
+        }
+      }
+    } catch {
+      // Fall through to search
+    }
+
+    // 2. Fallback to lrclib.net /api/search
+    try {
+      const searchQuery = `${cleanTitle} ${cleanArtist}`.trim() || cleanTitle;
+      const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(searchQuery)}`;
+      const sRes = await fetch(searchUrl, { headers, signal: AbortSignal.timeout(4000) });
+      if (sRes.ok) {
+        const list = (await sRes.json()) as Array<{
+          trackName?: string;
+          artistName?: string;
+          syncedLyrics?: string;
+          plainLyrics?: string;
+        }>;
+
+        if (Array.isArray(list) && list.length > 0) {
+          const match = list.find((item) => !!item.syncedLyrics) || list[0];
+          if (match.syncedLyrics) {
+            const lines = parseLrc(match.syncedLyrics);
+            const response: LyricsResponse = {
+              trackName: match.trackName || title,
+              artistName: match.artistName || artist,
+              synced: true,
+              lines,
+              plainLyrics: match.plainLyrics,
+            };
+            lyricsCache.set(cacheKey, response);
+            pendingLyricsFetches.delete(cacheKey);
+            return response;
+          } else if (match.plainLyrics) {
+            const response: LyricsResponse = {
+              trackName: match.trackName || title,
+              artistName: match.artistName || artist,
+              synced: false,
+              lines: [],
+              plainLyrics: match.plainLyrics,
+            };
+            lyricsCache.set(cacheKey, response);
+            pendingLyricsFetches.delete(cacheKey);
+            return response;
+          }
+        }
+      }
+    } catch {
+      // Fall through
+    }
+
+    lyricsCache.set(cacheKey, null);
+    pendingLyricsFetches.delete(cacheKey);
+    return null;
+  } catch {
+    pendingLyricsFetches.delete(cacheKey);
+    return null;
+  }
+}
 
 async function fetchArtworkForTrack(title: string, artist: string): Promise<string | null> {
   const cleanTitle = title.replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
@@ -25,11 +179,11 @@ async function fetchArtworkForTrack(title: string, artist: string): Promise<stri
   if (artworkCache.has(cacheKey)) {
     return artworkCache.get(cacheKey) || null;
   }
-  if (pendingFetches.has(cacheKey)) {
+  if (pendingArtworkFetches.has(cacheKey)) {
     return null;
   }
 
-  pendingFetches.add(cacheKey);
+  pendingArtworkFetches.add(cacheKey);
 
   try {
     const query = `${cleanTitle} ${cleanArtist}`.trim() || cleanTitle;
@@ -45,7 +199,7 @@ async function fetchArtworkForTrack(title: string, artist: string): Promise<stri
         if (json.results && json.results.length > 0 && json.results[0].artworkUrl100) {
           const hdUrl = json.results[0].artworkUrl100.replace('100x100bb', '600x600bb');
           artworkCache.set(cacheKey, hdUrl);
-          pendingFetches.delete(cacheKey);
+          pendingArtworkFetches.delete(cacheKey);
           return hdUrl;
         }
       }
@@ -67,7 +221,7 @@ async function fetchArtworkForTrack(title: string, artist: string): Promise<stri
           const cover = json.data[0].album.cover_big || json.data[0].album.cover_medium;
           if (cover) {
             artworkCache.set(cacheKey, cover);
-            pendingFetches.delete(cacheKey);
+            pendingArtworkFetches.delete(cacheKey);
             return cover;
           }
         }
@@ -77,10 +231,10 @@ async function fetchArtworkForTrack(title: string, artist: string): Promise<stri
     }
 
     artworkCache.set(cacheKey, null);
-    pendingFetches.delete(cacheKey);
+    pendingArtworkFetches.delete(cacheKey);
     return null;
   } catch {
-    pendingFetches.delete(cacheKey);
+    pendingArtworkFetches.delete(cacheKey);
     return null;
   }
 }
@@ -125,9 +279,11 @@ export function nowPlayingPlugin(): Plugin {
                       artwork: prevArtwork,
                     };
 
+                    const cleanTitle = data.title.replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
+                    const cleanArtist = (data.artist || '').replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
+
+                    // Pre-fetch artwork if not cached
                     if (!cachedMediaInfo.artwork) {
-                      const cleanTitle = data.title.replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
-                      const cleanArtist = (data.artist || '').replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
                       const cacheKey = `${cleanTitle.toLowerCase()} - ${cleanArtist.toLowerCase()}`;
                       const cached = artworkCache.get(cacheKey);
                       if (cached) {
@@ -140,6 +296,9 @@ export function nowPlayingPlugin(): Plugin {
                         });
                       }
                     }
+
+                    // Pre-fetch lyrics in background
+                    fetchLyricsForTrack(cleanTitle, cleanArtist, data.duration);
                   }
                 } catch {
                   // ignore JSON parse errors
@@ -226,6 +385,31 @@ export function nowPlayingPlugin(): Plugin {
           res.end(JSON.stringify({ artwork: art }));
         } catch {
           res.end(JSON.stringify({ artwork: null }));
+        }
+      });
+
+      // Serve GET /api/lyrics?track=...&artist=...&duration=...
+      server.middlewares.use('/api/lyrics', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+
+        try {
+          const url = new URL(req.url || '', 'http://localhost');
+          const track = url.searchParams.get('track') || '';
+          const artist = url.searchParams.get('artist') || '';
+          const durStr = url.searchParams.get('duration');
+          const duration = durStr ? parseFloat(durStr) : undefined;
+
+          if (!track && !artist) {
+            res.end(JSON.stringify({ synced: false, lines: [] }));
+            return;
+          }
+
+          const lyrics = await fetchLyricsForTrack(track, artist, duration);
+          res.end(JSON.stringify(lyrics || { synced: false, lines: [] }));
+        } catch {
+          res.end(JSON.stringify({ synced: false, lines: [] }));
         }
       });
 

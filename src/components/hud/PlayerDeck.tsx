@@ -9,6 +9,7 @@ import {
   Disc,
 } from 'lucide-react';
 import { usePlayerStore, getGlobalAudio } from '../../store/usePlayerStore';
+import { useLyricsStore } from '../../store/useLyricsStore';
 import { AudioEngine } from '../../audio/AudioEngine';
 
 export const PlayerDeck: React.FC = () => {
@@ -69,6 +70,7 @@ export const PlayerDeck: React.FC = () => {
           if (data && data.title && data.title.trim().length > 0) {
             setLiveSmtcData(data);
             usePlayerStore.getState().setLiveTrackInfo(data.title, data.artist || 'SPOTIFY');
+            useLyricsStore.getState().fetchLyrics(data.title, data.artist || '', data.duration);
           }
         }
       } catch {
@@ -118,6 +120,46 @@ export const PlayerDeck: React.FC = () => {
       cancelled = true;
     };
   }, [isLiveInput, currentTrack?.title, currentTrack?.artist]);
+
+  // Fetch lyrics for local track
+  useEffect(() => {
+    if (isLiveInput || !currentTrack) return;
+    useLyricsStore.getState().fetchLyrics(currentTrack.title, currentTrack.artist, currentTrack.duration);
+  }, [isLiveInput, currentTrack?.title, currentTrack?.artist, currentTrack?.duration]);
+
+  // High-precision sub-second time sync for lyrics
+  const lastSyncTimeRef = useRef<{ pos: number; timestamp: number }>({ pos: 0, timestamp: 0 });
+
+  useEffect(() => {
+    if (liveSmtcData?.position !== undefined) {
+      lastSyncTimeRef.current = {
+        pos: liveSmtcData.position,
+        timestamp: performance.now(),
+      };
+    }
+  }, [liveSmtcData?.position]);
+
+  useEffect(() => {
+    let animId: number;
+    const syncLyricsLoop = () => {
+      animId = requestAnimationFrame(syncLyricsLoop);
+      if (isLiveInput) {
+        if (liveSmtcData) {
+          const isPlaying = liveSmtcData.status === 'Playing';
+          const elapsed = isPlaying ? (performance.now() - lastSyncTimeRef.current.timestamp) / 1000 : 0;
+          const currentPrecise = Math.max(0, lastSyncTimeRef.current.pos + elapsed);
+          useLyricsStore.getState().updateActiveLine(currentPrecise);
+        }
+      } else {
+        const audio = getGlobalAudio();
+        if (audio) {
+          useLyricsStore.getState().updateActiveLine(audio.currentTime);
+        }
+      }
+    };
+    animId = requestAnimationFrame(syncLyricsLoop);
+    return () => cancelAnimationFrame(animId);
+  }, [isLiveInput, liveSmtcData?.status]);
 
   // Audio element listeners for time update (triggered only by native audio event, not rAF)
   useEffect(() => {
