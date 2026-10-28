@@ -445,34 +445,17 @@ export const PlayerDeck: React.FC = () => {
           </div>
 
           {/* Song Metadata Text Block */}
-          <div className="flex flex-col gap-0.5 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[8px] text-neutral-500 uppercase tracking-widest">
-                {isLiveInput
-                  ? 'LIVE INGESTION // CHANNEL A'
-                  : isPlaying
-                  ? 'LOCAL PLAYBACK // CHANNEL A'
-                  : 'AUDIO CARRIER // STANDBY'}
-              </span>
-              {(isLiveInput || isPlaying) && (
-                <span className="inline-flex items-center gap-1 text-[8px] text-white font-mono tracking-widest uppercase">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff] animate-pulse" />
-                  ACTIVE
-                </span>
-              )}
-            </div>
+          <div className="flex flex-col justify-center min-w-0 h-11">
             <div className="text-xs font-bold text-white tracking-wider truncate max-w-[200px] sm:max-w-[260px] md:max-w-xs">
               {isLiveInput && liveSmtcData?.title
                 ? liveSmtcData.title.toUpperCase()
                 : isPlaying && currentTrack
                 ? currentTrack.title.toUpperCase()
-                : 'STANDBY // NO STREAM'}
+                : 'STANDBY'}
             </div>
-            <div className="text-[9.5px] text-neutral-400 tracking-wider truncate max-w-[200px] sm:max-w-[260px] md:max-w-xs">
+            <div className="text-[9.5px] text-neutral-400 tracking-wider truncate max-w-[200px] sm:max-w-[260px] md:max-w-xs mt-0.5">
               {isLiveInput && liveSmtcData?.title
-                ? `${(liveSmtcData.artist || 'DESKTOP AUDIO').toUpperCase()}${
-                    liveSmtcData.album ? ` // ${liveSmtcData.album.toUpperCase()}` : ''
-                  }`
+                ? (liveSmtcData.artist || 'DESKTOP AUDIO').toUpperCase()
                 : isPlaying && currentTrack
                 ? currentTrack.artist.toUpperCase()
                 : 'CLICK [SPOTIFY IN] TO SHARE AUDIO'}
