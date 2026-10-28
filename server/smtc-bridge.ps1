@@ -20,6 +20,8 @@ if (-not $manager) {
 
 [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties, Windows.Media, ContentType = WindowsRuntime] | Out-Null
 
+$cmdFilePath = Join-Path $PSScriptRoot ".cmd"
+
 while ($true) {
     try {
         $current = $manager.GetCurrentSession()
@@ -33,6 +35,32 @@ while ($true) {
             }
             if (-not $current -and $sessions.Count -gt 0) {
                 $current = $sessions[0]
+            }
+        }
+
+        # Check and process incoming control command from Node.js
+        if (Test-Path $cmdFilePath) {
+            $cmd = $null
+            try {
+                $cmd = (Get-Content $cmdFilePath -Raw -ErrorAction SilentlyContinue)
+                Remove-Item $cmdFilePath -Force -ErrorAction SilentlyContinue
+            } catch {}
+
+            if ($cmd) {
+                $cmd = $cmd.Trim()
+                if ($current) {
+                    if ($cmd -eq "PLAY_PAUSE") {
+                        Await ($current.TryTogglePlayPauseAsync()) ([bool]) | Out-Null
+                    } elseif ($cmd -eq "NEXT") {
+                        Await ($current.TrySkipNextAsync()) ([bool]) | Out-Null
+                    } elseif ($cmd -eq "PREV") {
+                        Await ($current.TrySkipPreviousAsync()) ([bool]) | Out-Null
+                    } elseif ($cmd -like "SEEK:*") {
+                        $sec = [double]($cmd.Substring(5))
+                        $ticks = [long]($sec * 10000000)
+                        Await ($current.TryChangePlaybackPositionAsync($ticks)) ([bool]) | Out-Null
+                    }
+                }
             }
         }
 
@@ -65,5 +93,5 @@ while ($true) {
     } catch {
         [Console]::WriteLine('{"status":"error","source":"smtc"}')
     }
-    Start-Sleep -Milliseconds 800
+    Start-Sleep -Milliseconds 400
 }

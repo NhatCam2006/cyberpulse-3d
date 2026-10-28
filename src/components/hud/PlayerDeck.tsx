@@ -43,6 +43,7 @@ export const PlayerDeck: React.FC = () => {
     title?: string;
     artist?: string;
     album?: string;
+    status?: string;
     artwork?: string;
   } | null>(null);
   const [localArtwork, setLocalArtwork] = useState<string | null>(null);
@@ -209,11 +210,69 @@ export const PlayerDeck: React.FC = () => {
   };
 
   const handleProgressBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isDemoSynth || isLiveInput) return;
+    if (isDemoSynth) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+
+    if (isLiveInput) {
+      if (liveSmtcData?.duration && liveSmtcData.duration > 0) {
+        const targetSec = ratio * liveSmtcData.duration;
+        fetch('/api/media-control', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'seek', value: targetSec }),
+        }).catch(() => {});
+        setLiveSmtcData(prev => (prev ? { ...prev, position: targetSec } : prev));
+      }
+      return;
+    }
+
     seek(ratio);
+  };
+
+  const handleTogglePlay = () => {
+    if (isLiveInput) {
+      fetch('/api/media-control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'play_pause' }),
+      }).catch(() => {});
+      setLiveSmtcData(prev =>
+        prev
+          ? {
+              ...prev,
+              status: prev.status === 'Playing' ? 'Paused' : 'Playing',
+            }
+          : prev
+      );
+      return;
+    }
+    togglePlay();
+  };
+
+  const handlePlayNext = () => {
+    if (isLiveInput) {
+      fetch('/api/media-control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'next' }),
+      }).catch(() => {});
+      return;
+    }
+    playNext();
+  };
+
+  const handlePlayPrev = () => {
+    if (isLiveInput) {
+      fetch('/api/media-control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'prev' }),
+      }).catch(() => {});
+      return;
+    }
+    playPrev();
   };
 
   const handleToggleMute = () => {
@@ -351,22 +410,25 @@ export const PlayerDeck: React.FC = () => {
           <div className="flex items-center gap-2.5">
             {/* Prev */}
             <button
-              onClick={playPrev}
-              disabled={tracks.length <= 1 || isLiveInput}
+              onClick={handlePlayPrev}
+              disabled={!isLiveInput && tracks.length <= 1}
               className="text-neutral-400 hover:text-white transition-colors cursor-pointer disabled:opacity-20 text-[10px] tracking-widest font-mono"
-              title="Previous Track"
+              title={isLiveInput ? 'Previous Track (Spotify)' : 'Previous Track'}
             >
               [ |◁ ]
             </button>
 
             {/* Play / Pause - Minimalist Glass Reticle */}
             <button
-              onClick={togglePlay}
-              disabled={isLiveInput}
-              className="w-7 h-7 rounded-full border border-white/40 hover:border-white bg-white/5 hover:bg-white/15 text-white flex items-center justify-center transition-all cursor-pointer shadow-[0_0_8px_rgba(255,255,255,0.1)] active:scale-95 disabled:opacity-30"
-              title={isPlaying ? 'Pause' : 'Play'}
+              onClick={handleTogglePlay}
+              className="w-7 h-7 rounded-full border border-white/40 hover:border-white bg-white/5 hover:bg-white/15 text-white flex items-center justify-center transition-all cursor-pointer shadow-[0_0_8px_rgba(255,255,255,0.1)] active:scale-95"
+              title={
+                isLiveInput
+                  ? (liveSmtcData ? (liveSmtcData.status === 'Playing' ? 'Pause (Spotify)' : 'Play (Spotify)') : 'Play / Pause (Spotify)')
+                  : (isPlaying ? 'Pause' : 'Play')
+              }
             >
-              {isPlaying ? (
+              {(isLiveInput ? (liveSmtcData ? liveSmtcData.status === 'Playing' : true) : isPlaying) ? (
                 <Pause className="w-3 h-3 fill-white stroke-none" />
               ) : (
                 <Play className="w-3 h-3 fill-white stroke-none ml-0.5" />
@@ -375,10 +437,10 @@ export const PlayerDeck: React.FC = () => {
 
             {/* Next */}
             <button
-              onClick={playNext}
-              disabled={tracks.length <= 1 || isLiveInput}
+              onClick={handlePlayNext}
+              disabled={!isLiveInput && tracks.length <= 1}
               className="text-neutral-400 hover:text-white transition-colors cursor-pointer disabled:opacity-20 text-[10px] tracking-widest font-mono"
-              title="Next Track"
+              title={isLiveInput ? 'Next Track (Spotify)' : 'Next Track'}
             >
               [ ▷| ]
             </button>

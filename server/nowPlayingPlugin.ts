@@ -1,6 +1,7 @@
 import { Plugin } from 'vite';
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 
 export interface NowPlayingData {
   title?: string;
@@ -163,6 +164,48 @@ export function nowPlayingPlugin(): Plugin {
         res.end(JSON.stringify(cachedMediaInfo || { status: 'idle' }));
       });
 
+      // Serve POST /api/media-control
+      server.middlewares.use('/api/media-control', (req, res) => {
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => {
+            body += chunk;
+          });
+          req.on('end', () => {
+            try {
+              const { action, value } = JSON.parse(body || '{}');
+              const cmdPath = path.resolve(__dirname, '.cmd');
+              let cmdStr = '';
+              if (action === 'play_pause') {
+                cmdStr = 'PLAY_PAUSE';
+              } else if (action === 'next') {
+                cmdStr = 'NEXT';
+              } else if (action === 'prev') {
+                cmdStr = 'PREV';
+              } else if (action === 'seek' && typeof value === 'number') {
+                cmdStr = `SEEK:${value}`;
+              }
+
+              if (cmdStr) {
+                fs.writeFileSync(cmdPath, cmdStr, 'utf8');
+                res.setHeader('Content-Type', 'application/json');
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.end(JSON.stringify({ ok: true, action }));
+                return;
+              }
+            } catch {
+              // ignore
+            }
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.end(JSON.stringify({ ok: false }));
+          });
+          return;
+        }
+        res.statusCode = 405;
+        res.end();
+      });
+
       // Serve GET /api/artwork?term=...&artist=...
       server.middlewares.use('/api/artwork', async (req, res) => {
         res.setHeader('Content-Type', 'application/json');
@@ -188,6 +231,10 @@ export function nowPlayingPlugin(): Plugin {
 
       // Cleanup child process on server exit
       const killChild = () => {
+        const cmdPath = path.resolve(__dirname, '.cmd');
+        try {
+          fs.unlinkSync(cmdPath);
+        } catch {}
         if (child) {
           try {
             child.kill();
