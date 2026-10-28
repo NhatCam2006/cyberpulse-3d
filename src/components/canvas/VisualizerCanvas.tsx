@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { SolarSystemCore } from './concepts/SolarSystemCore';
 import { heliocentricPositions } from '../../utils/celestialMechanics';
 import { HorizonSpacecraft } from './concepts/HorizonSpacecraft';
-import { usePlayerStore } from '../../store/usePlayerStore';
+import { usePlayerStore, CameraMode } from '../../store/usePlayerStore';
 import { AudioEngine } from '../../audio/AudioEngine';
 
 const PLANET_ZOOM_DISTANCES: Record<string, number> = {
@@ -28,11 +28,21 @@ const _defaultTarget = new THREE.Vector3(0, 0, 0);
 const _camDir = new THREE.Vector3();
 const _sunDir = new THREE.Vector3();
 
+// Default Orbit Vista: exact heliocentric vista matching the hard sci-fi aesthetic
+// Distance D = 35.5, elevation = 20.0 deg, azimuth theta = 27.0 deg
+export const DEFAULT_ORBIT_CAM_POS = new THREE.Vector3(15.14, 12.14, 29.72);
+export const DEFAULT_ORBIT_TARGET = new THREE.Vector3(0, 0, 0);
+
 const CameraRig = () => {
   const cameraMode = usePlayerStore(state => state.cameraMode);
   const selectedPlanet = usePlayerStore(state => state.selectedPlanet);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
+
+  // Transition refs for Orbit Mode default vista
+  const prevCameraModeRef = useRef<CameraMode>(cameraMode);
+  const prevSelectedPlanetRef = useRef<string | null>(selectedPlanet);
+  const isResettingOrbitRef = useRef<boolean>(false);
 
   // Cinematic Dolly Micro-Drift State (Climax / Drop recoil & smooth recovery)
   const climaxDriftRef = useRef({
@@ -42,6 +52,15 @@ const CameraRig = () => {
   });
 
   useFrame((state, delta) => {
+    // Mode transitions & Reset View triggers for Orbit Mode
+    const enteredOrbitMode = prevCameraModeRef.current !== 'orbit' && cameraMode === 'orbit';
+    const resetPlanetInOrbit = cameraMode === 'orbit' && prevSelectedPlanetRef.current !== null && selectedPlanet === null;
+
+    if (enteredOrbitMode || resetPlanetInOrbit) {
+      isResettingOrbitRef.current = true;
+    }
+    prevCameraModeRef.current = cameraMode;
+    prevSelectedPlanetRef.current = selectedPlanet;
     const engine = AudioEngine.getInstance();
     const audioData = engine.update();
     const { beatIntensity, isClimax, climaxIntensity } = audioData;
@@ -91,6 +110,7 @@ const CameraRig = () => {
 
     // 1. External Planet Tracking (Vista / Orbit Mode)
     if (cameraMode !== 'spacecraft' && selectedPlanet && heliocentricPositions[selectedPlanet]) {
+      isResettingOrbitRef.current = false; // Never fight active planet tracking
       const pPos = heliocentricPositions[selectedPlanet];
 
       if (controlsRef.current && cameraMode === 'orbit') {
@@ -186,9 +206,29 @@ const CameraRig = () => {
       // Guarantees strict 0-lag, 0-GC, 0-jitter, and zero rocking/wobbling.
       return;
     } else {
-      // MODE 3: FREE ORBIT (Manual mouse inspection)
+      // MODE 3: FREE ORBIT (Manual mouse inspection with cinematic default vista)
       state.camera.up.set(0, 1, 0);
-      if (controlsRef.current && (!selectedPlanet || !heliocentricPositions[selectedPlanet])) {
+
+      // If user starts dragging/interacting with OrbitControls, immediately yield full control to user
+      if (controlsRef.current && typeof controlsRef.current.state === 'number' && controlsRef.current.state !== -1) {
+        isResettingOrbitRef.current = false;
+      }
+
+      if (isResettingOrbitRef.current) {
+        state.camera.position.lerp(DEFAULT_ORBIT_CAM_POS, 0.08);
+        if (controlsRef.current) {
+          controlsRef.current.target.lerp(DEFAULT_ORBIT_TARGET, 0.08);
+          controlsRef.current.update();
+        }
+        if (state.camera.position.distanceTo(DEFAULT_ORBIT_CAM_POS) < 0.08) {
+          state.camera.position.copy(DEFAULT_ORBIT_CAM_POS);
+          if (controlsRef.current) {
+            controlsRef.current.target.copy(DEFAULT_ORBIT_TARGET);
+            controlsRef.current.update();
+          }
+          isResettingOrbitRef.current = false;
+        }
+      } else if (controlsRef.current && (!selectedPlanet || !heliocentricPositions[selectedPlanet])) {
         controlsRef.current.target.lerp(_defaultTarget, 0.05);
       }
     }
@@ -200,7 +240,7 @@ const CameraRig = () => {
       enableDamping={true}
       dampingFactor={0.06}
       minDistance={0.5}
-      maxDistance={45}
+      maxDistance={65}
       target={[0, 0, 0]}
       enabled={cameraMode === 'orbit'}
     />
