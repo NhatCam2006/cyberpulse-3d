@@ -432,6 +432,7 @@ export const SolarSystemCore = () => {
           uWakeLength: { value: wakeLength },
           uBass: { value: 0 },
           uBeatIntensity: { value: 0 },
+          uTime: { value: 0 },
           uColor: { value: new THREE.Color(0xe2e8f0) },
         },
         transparent: true,
@@ -467,6 +468,7 @@ export const SolarSystemCore = () => {
           uWakeLength: { value: wakeLength },
           uBass: { value: 0 },
           uBeatIntensity: { value: 0 },
+          uTime: { value: 0 },
           uColor: { value: new THREE.Color(0xb0b8c4) },
         },
         transparent: true,
@@ -779,13 +781,22 @@ export const SolarSystemCore = () => {
         const { position: p3d } = getHeliocentricPosition(planet, meanAnomaliesRef.current[idx]);
         heliocentricPositions[planet.name] = p3d;
 
-        // Update Keplerian Velocity Orbit Wake Shader (0 GC)
+        // Update Keplerian Velocity Orbit Wake Shader & Wave Propagation (0 GC)
         const lineMat = orbitLines[idx]?.material as THREE.ShaderMaterial;
         if (lineMat && lineMat.uniforms) {
           lineMat.uniforms.uPlanetAnomaly.value = meanAnomaliesRef.current[idx];
           lineMat.uniforms.uBass.value = bass;
           lineMat.uniforms.uBeatIntensity.value = beatIntensity;
+          lineMat.uniforms.uTime.value = time;
         }
+
+        // Apply identical heliocentric wave displacement to planet so it smoothly rides the orbit wave
+        const rPlanet = Math.hypot(p3d.x, p3d.z);
+        const thetaPlanet = Math.atan2(p3d.z, p3d.x);
+        const wavePhase = rPlanet * 1.35 - thetaPlanet * 0.35 - time * 4.8;
+        const waveAmp = 0.025 + beatIntensity * 0.042 + bass * 0.016;
+        const env = Math.min(1.0, Math.max(0.0, (rPlanet - 0.5) / 0.9)) * (1.0 - Math.min(1.0, Math.max(0.0, (rPlanet - 11.0) / 5.0)) * 0.30);
+        p3d.y += Math.sin(wavePhase) * waveAmp * env;
 
         const planetGroup = planetsGroupRef.current?.children[idx] as THREE.Group;
         if (planetGroup) {
@@ -863,6 +874,14 @@ export const SolarSystemCore = () => {
         const omega = (1.0 / Math.pow(dp.a_AU, 1.5)) * 1.85 * (0.4 + mid * 0.12);
         dwarfAnomaliesRef.current[idx] += delta * omega;
         const { position: dpPos } = getHeliocentricPosition(dp, dwarfAnomaliesRef.current[idx]);
+        // Apply identical wave displacement to dwarf planets
+        const rDp = Math.hypot(dpPos.x, dpPos.z);
+        const thetaDp = Math.atan2(dpPos.z, dpPos.x);
+        const dpWavePhase = rDp * 1.35 - thetaDp * 0.35 - time * 4.8;
+        const dpWaveAmp = 0.025 + beatIntensity * 0.042 + bass * 0.016;
+        const dpEnv = Math.min(1.0, Math.max(0.0, (rDp - 0.5) / 0.9)) * (1.0 - Math.min(1.0, Math.max(0.0, (rDp - 11.0) / 5.0)) * 0.30);
+        dpPos.y += Math.sin(dpWavePhase) * dpWaveAmp * dpEnv;
+
         heliocentricPositions[dp.name] = dpPos;
 
         // Update Dwarf Keplerian Velocity Orbit Wake Shader (0 GC)
@@ -871,6 +890,7 @@ export const SolarSystemCore = () => {
           dwarfMat.uniforms.uPlanetAnomaly.value = dwarfAnomaliesRef.current[idx];
           dwarfMat.uniforms.uBass.value = bass;
           dwarfMat.uniforms.uBeatIntensity.value = beatIntensity;
+          dwarfMat.uniforms.uTime.value = time;
         }
 
         const group = dwarfGroupRef.current?.children[idx] as THREE.Group;
