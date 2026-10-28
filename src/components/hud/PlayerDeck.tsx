@@ -79,7 +79,7 @@ export const PlayerDeck: React.FC = () => {
     };
 
     pollSmtc();
-    const smtcInterval = setInterval(pollSmtc, 1000);
+    const smtcInterval = setInterval(pollSmtc, 350);
 
     return () => {
       clearInterval(timer);
@@ -143,17 +143,18 @@ export const PlayerDeck: React.FC = () => {
     let animId: number;
     const syncLyricsLoop = () => {
       animId = requestAnimationFrame(syncLyricsLoop);
+      const VOCAL_ATTACK_LEAD = 0.35; // 350ms lead-in compensates for human vocal attack perception
       if (isLiveInput) {
         if (liveSmtcData) {
           const isPlaying = liveSmtcData.status === 'Playing';
           const elapsed = isPlaying ? (performance.now() - lastSyncTimeRef.current.timestamp) / 1000 : 0;
-          const currentPrecise = Math.max(0, lastSyncTimeRef.current.pos + elapsed);
+          const currentPrecise = Math.max(0, lastSyncTimeRef.current.pos + elapsed + VOCAL_ATTACK_LEAD);
           useLyricsStore.getState().updateActiveLine(currentPrecise);
         }
       } else {
         const audio = getGlobalAudio();
         if (audio) {
-          useLyricsStore.getState().updateActiveLine(audio.currentTime);
+          useLyricsStore.getState().updateActiveLine(audio.currentTime + 0.15);
         }
       }
     };

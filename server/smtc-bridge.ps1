@@ -73,7 +73,17 @@ while ($true) {
             $artist = if ($props) { $props.Artist } else { "" }
             $album = if ($props) { $props.AlbumTitle } else { "" }
             $status = if ($playbackInfo) { $playbackInfo.PlaybackStatus.ToString() } else { "Unknown" }
-            $pos = if ($timeline) { [Math]::Round($timeline.Position.TotalSeconds, 1) } else { 0 }
+
+            $rawPos = if ($timeline) { $timeline.Position.TotalSeconds } else { 0 }
+            $actualPos = $rawPos
+            if ($timeline -and $status -eq "Playing") {
+                $elapsedSinceUpdate = ([DateTimeOffset]::Now - $timeline.LastUpdatedTime).TotalSeconds
+                if ($elapsedSinceUpdate -gt 0 -and $elapsedSinceUpdate -lt 15) {
+                    $actualPos = $rawPos + $elapsedSinceUpdate
+                }
+            }
+
+            $pos = [Math]::Round($actualPos, 2)
             $dur = if ($timeline) { [Math]::Round($timeline.EndTime.TotalSeconds, 1) } else { 0 }
 
             $json = [PSCustomObject]@{
@@ -93,5 +103,5 @@ while ($true) {
     } catch {
         [Console]::WriteLine('{"status":"error","source":"smtc"}')
     }
-    Start-Sleep -Milliseconds 400
+    Start-Sleep -Milliseconds 350
 }
