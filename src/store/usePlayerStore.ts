@@ -132,7 +132,7 @@ function parseTrackMetadata(fileName: string): { title: string; artist: string }
   }
 
   return {
-    artist: 'CYBERPULSE ARCHIVE',
+    artist: 'SOLSYS ARCHIVE',
     title: cleanName,
   };
 }

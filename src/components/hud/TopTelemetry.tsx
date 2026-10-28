@@ -168,7 +168,7 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
       <div className="flex flex-col gap-1.5 border-l border-white/20 pl-2.5 font-mono pointer-events-auto">
         <div className="flex items-center">
           <span className="font-mono font-bold tracking-[0.22em] text-xs text-white">
-            CYBERPULSE
+            SOLSYS x K-POP
           </span>
         </div>
 
