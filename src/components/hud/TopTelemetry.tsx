@@ -50,8 +50,7 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
   const bassBarRef = useRef<HTMLDivElement>(null);
   const midBarRef = useRef<HTMLDivElement>(null);
   const highBarRef = useRef<HTMLDivElement>(null);
-  const beatBadgeRef = useRef<HTMLDivElement>(null);
-  const beatDotRef = useRef<HTMLDivElement>(null);
+  const beatBadgeRef = useRef<HTMLSpanElement>(null);
 
   const frameCountRef = useRef<number>(0);
   const lastFpsUpdateTimeRef = useRef<number>(performance.now());
@@ -96,21 +95,17 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
         highBarRef.current.style.transform = `scaleX(${Math.min(1, audioData.high)})`;
       }
 
-      // Direct update of Beat Indicator via style/class
-      if (beatBadgeRef.current && beatDotRef.current) {
+      // Direct update of Beat Indicator via luminescence (Zero box, zero clutter)
+      if (beatBadgeRef.current) {
         const isBeat = audioData.isBeat || audioData.beatIntensity > 0.3;
         if (isBeat) {
-          beatBadgeRef.current.style.borderColor = 'rgba(255, 255, 255, 0.4)';
-          beatBadgeRef.current.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
           beatBadgeRef.current.style.color = '#ffffff';
-          beatDotRef.current.style.backgroundColor = '#ffffff';
-          beatDotRef.current.style.boxShadow = '0 0 6px #ffffff';
+          beatBadgeRef.current.style.textShadow = '0 0 8px rgba(255, 255, 255, 0.9)';
+          beatBadgeRef.current.style.opacity = '1';
         } else {
-          beatBadgeRef.current.style.borderColor = 'rgba(255, 255, 255, 0.10)';
-          beatBadgeRef.current.style.backgroundColor = '#0a0a0e';
-          beatBadgeRef.current.style.color = '#555566';
-          beatDotRef.current.style.backgroundColor = '#33333f';
-          beatDotRef.current.style.boxShadow = 'none';
+          beatBadgeRef.current.style.color = '#71717a';
+          beatBadgeRef.current.style.textShadow = 'none';
+          beatBadgeRef.current.style.opacity = '0.5';
         }
       }
 
@@ -131,30 +126,28 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
       */}
       
       {/* Left Section: System Identity & Real-Time Performance */}
-      <div className="flex flex-col gap-1 border-l border-white/20 pl-2.5 font-mono pointer-events-auto">
-        <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff]" />
-          <span className="font-mono font-bold tracking-[0.2em] text-xs text-white">
+      <div className="flex flex-col gap-1.5 border-l border-white/20 pl-2.5 font-mono pointer-events-auto">
+        <div className="flex items-center">
+          <span className="font-mono font-bold tracking-[0.22em] text-xs text-white">
             CYBERPULSE
           </span>
-          <span className="text-[10px] text-neutral-500 font-normal">/ 01</span>
         </div>
 
-        <div className="flex items-center gap-2.5 text-[9px] text-neutral-400 font-mono tracking-wider">
-          <div className="flex items-center gap-1">
-            <span className="text-neutral-500">FPS</span>
-            <span className={`font-bold ${fps >= 55 ? 'text-white' : fps >= 30 ? 'text-neutral-300' : 'text-neutral-500'}`}>
+        <div className="flex items-center gap-3 text-[9px] font-mono tracking-wider">
+          <div className="flex items-baseline gap-1">
+            <span className="text-[8px] text-neutral-500 uppercase tracking-widest">FPS</span>
+            <span className={`font-bold font-mono text-[9px] ${fps >= 55 ? 'text-white' : fps >= 30 ? 'text-neutral-300' : 'text-neutral-500'}`}>
               {fps}
             </span>
           </div>
 
-          <span className="text-white/15">|</span>
+          <div className="w-px h-2 bg-white/15" />
 
           {/* Micro Frequency Meters (B / M / H) */}
-          <div className="hidden sm:flex items-center gap-2">
-            <div className="flex items-center gap-1">
-              <span className="text-neutral-500 font-semibold text-[8px]">B</span>
-              <div className="w-6 h-1 bg-white/10 overflow-hidden">
+          <div className="hidden sm:flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-neutral-500 font-medium text-[7.5px] tracking-wider">B</span>
+              <div className="w-7 h-[2px] bg-white/10 overflow-hidden rounded-[1px]">
                 <div
                   ref={bassBarRef}
                   className="h-full bg-white origin-left will-change-transform"
@@ -163,9 +156,9 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
               </div>
             </div>
 
-            <div className="flex items-center gap-1">
-              <span className="text-neutral-500 font-semibold text-[8px]">M</span>
-              <div className="w-6 h-1 bg-white/10 overflow-hidden">
+            <div className="flex items-center gap-1.5">
+              <span className="text-neutral-500 font-medium text-[7.5px] tracking-wider">M</span>
+              <div className="w-7 h-[2px] bg-white/10 overflow-hidden rounded-[1px]">
                 <div
                   ref={midBarRef}
                   className="h-full bg-white/80 origin-left will-change-transform"
@@ -174,9 +167,9 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
               </div>
             </div>
 
-            <div className="flex items-center gap-1">
-              <span className="text-neutral-500 font-semibold text-[8px]">H</span>
-              <div className="w-6 h-1 bg-white/10 overflow-hidden">
+            <div className="flex items-center gap-1.5">
+              <span className="text-neutral-500 font-medium text-[7.5px] tracking-wider">H</span>
+              <div className="w-7 h-[2px] bg-white/10 overflow-hidden rounded-[1px]">
                 <div
                   ref={highBarRef}
                   className="h-full bg-white/60 origin-left will-change-transform"
@@ -186,19 +179,15 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
             </div>
           </div>
 
-          <span className="text-white/15 hidden sm:inline">|</span>
+          <div className="w-px h-2 bg-white/15 hidden sm:block" />
 
-          {/* Micro Beat Indicator */}
-          <div
+          {/* Pure Typographic Beat Indicator (Zero Box, Zero Dot, Kinetic Light Pulse) */}
+          <span
             ref={beatBadgeRef}
-            className="flex items-center gap-1 text-[8.5px] tracking-widest text-neutral-500 transition-colors duration-75"
+            className="text-[8px] font-mono tracking-[0.2em] uppercase text-neutral-500 transition-all duration-75"
           >
-            <div
-              ref={beatDotRef}
-              className="w-1.5 h-1.5 rounded-full bg-neutral-600 transition-all duration-75"
-            />
-            <span>BEAT</span>
-          </div>
+            BEAT
+          </span>
         </div>
       </div>
 
