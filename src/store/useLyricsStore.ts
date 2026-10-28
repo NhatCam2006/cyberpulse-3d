@@ -17,6 +17,9 @@ export interface LyricsState {
   activeLine: LyricLine | null;
   prevLine: LyricLine | null;
   nextLine: LyricLine | null;
+  timeOffset: number; // Fine-tuning offset in seconds (positive = early, negative = delay)
+  setTimeOffset: (offset: number) => void;
+  adjustTimeOffset: (delta: number) => void;
   fetchLyrics: (title: string, artist: string, duration?: number, album?: string) => Promise<void>;
   setSyncedData: (title: string, artist: string, data: { synced?: boolean; lines?: LyricLine[]; plainLyrics?: string | null }) => void;
   updateActiveLine: (currentTime: number) => void;
@@ -49,6 +52,15 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   activeLine: null,
   prevLine: null,
   nextLine: null,
+  timeOffset: 0.0, // Default 0.0s: exactly on-beat with audio, zero premature lead
+
+  setTimeOffset: (offset: number) => {
+    set({ timeOffset: offset });
+  },
+
+  adjustTimeOffset: (delta: number) => {
+    set(state => ({ timeOffset: state.timeOffset + delta }));
+  },
 
   setSyncedData: (title: string, artist: string, data: { synced?: boolean; lines?: LyricLine[]; plainLyrics?: string | null }) => {
     if (!title || !title.trim()) return;
@@ -137,15 +149,18 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   },
 
   updateActiveLine: (currentTime: number) => {
-    const { lines, activeLineIndex } = get();
+    const { lines, activeLineIndex, timeOffset } = get();
     if (!lines || lines.length === 0) return;
+
+    // Apply precision micro-offset (default 0.0s for authentic timestamp sync)
+    const adjustedTime = currentTime + (timeOffset || 0);
 
     // Fast-path: check if current line is still valid
     if (
       activeLineIndex >= 0 &&
       activeLineIndex < lines.length &&
-      lines[activeLineIndex].time <= currentTime &&
-      (activeLineIndex === lines.length - 1 || currentTime < lines[activeLineIndex + 1].time)
+      lines[activeLineIndex].time <= adjustedTime &&
+      (activeLineIndex === lines.length - 1 || adjustedTime < lines[activeLineIndex + 1].time)
     ) {
       return; // No change needed
     }
@@ -157,7 +172,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
 
     while (low <= high) {
       const mid = (low + high) >> 1;
-      if (lines[mid].time <= currentTime) {
+      if (lines[mid].time <= adjustedTime) {
         best = mid;
         low = mid + 1;
       } else {

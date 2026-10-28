@@ -194,17 +194,16 @@ export const PlayerDeck: React.FC = () => {
     let animId: number;
     const syncLyricsLoop = () => {
       animId = requestAnimationFrame(syncLyricsLoop);
-      const VOCAL_ATTACK_LEAD = 0.35; // 350ms lead-in compensates for human vocal attack perception
       const audio = getGlobalAudio();
 
       if (audio && !audio.paused) {
-        // Local audio track active
-        useLyricsStore.getState().updateActiveLine(audio.currentTime + VOCAL_ATTACK_LEAD);
+        // Local audio track active - strictly exact real-time sync with audio.currentTime (0 artificial lead)
+        useLyricsStore.getState().updateActiveLine(audio.currentTime);
       } else if (liveSmtcData && liveSmtcData.position !== undefined) {
-        // Live SMTC / Spotify playback active
+        // Live SMTC / Spotify playback active - strictly exact extrapolated position
         const isPlaying = liveSmtcData.status === 'Playing';
         const elapsed = isPlaying ? (performance.now() - lastSyncTimeRef.current.timestamp) / 1000 : 0;
-        const currentPrecise = Math.max(0, lastSyncTimeRef.current.pos + elapsed + VOCAL_ATTACK_LEAD);
+        const currentPrecise = Math.max(0, lastSyncTimeRef.current.pos + elapsed);
         useLyricsStore.getState().updateActiveLine(currentPrecise);
       }
     };
