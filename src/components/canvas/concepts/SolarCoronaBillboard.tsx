@@ -46,9 +46,9 @@ export const SolarCoronaBillboard = () => {
     material.uniforms.uBeatIntensity.value = beatIntensity;
 
     // Dual-layer coronal breathing:
-    // Snappy starlight optical diffraction flare (+0.60 on kicks) that returns fast
-    const kickPunch = Math.pow(beatIntensity, 1.25) * 0.60;
-    const melodicBreath = (1.0 - Math.min(1.0, beatIntensity * 1.5)) * (mid * 0.20 + acousticEnergy * 0.15);
+    // Expansive, powerful starlight optical diffraction flare on kicks + rich melodic breath
+    const kickPunch = bass * 0.60 + beatIntensity * 0.80;
+    const melodicBreath = (1.0 - Math.min(1.0, beatIntensity * 1.5)) * (mid * 0.45 + acousticEnergy * 0.25);
     const s = 6.8 + kickPunch + melodicBreath;
     meshRef.current.scale.set(s, s, s);
   });
