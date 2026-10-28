@@ -77,6 +77,16 @@ function cleanArtistName(artist: string): string {
     .trim();
 }
 
+interface LrcItem {
+  id: number;
+  trackName?: string;
+  artistName?: string;
+  albumName?: string;
+  duration?: number;
+  syncedLyrics?: string;
+  plainLyrics?: string;
+}
+
 async function fetchLyricsForTrack(
   title: string,
   artist: string,
@@ -99,41 +109,35 @@ async function fetchLyricsForTrack(
   try {
     const headers = { 'User-Agent': 'Cyberpulse3D/1.0.0 (https://github.com/NhatCam2006/cyberpulse-3d)' };
 
-    // Multi-tier query strategies for maximum coverage
-    const searchUrls: string[] = [
-      `https://lrclib.net/api/search?track_name=${encodeURIComponent(cTitle)}&artist_name=${encodeURIComponent(cArtist)}`,
-      `https://lrclib.net/api/search?q=${encodeURIComponent(cTitle + ' ' + cArtist)}`,
-      `https://lrclib.net/api/search?q=${encodeURIComponent(title.trim() + ' ' + artist.trim())}`,
-      `https://lrclib.net/api/search?q=${encodeURIComponent(cArtist + ' ' + cTitle)}`
-    ];
+    // Strategy 1: Search by track_name & artist_name (single request, returns ranked entries)
+    let candidates: LrcItem[] = [];
 
-    interface LrcItem {
-      id: number;
-      trackName?: string;
-      artistName?: string;
-      albumName?: string;
-      duration?: number;
-      syncedLyrics?: string;
-      plainLyrics?: string;
+    const url1 = `https://lrclib.net/api/search?track_name=${encodeURIComponent(cTitle)}&artist_name=${encodeURIComponent(cArtist)}`;
+    try {
+      const res1 = await fetch(url1, { headers, signal: AbortSignal.timeout(3500) });
+      if (res1.ok) {
+        const list = (await res1.json()) as LrcItem[];
+        if (Array.isArray(list) && list.length > 0) {
+          candidates = list;
+        }
+      }
+    } catch {
+      // ignore
     }
 
-    const candidates: LrcItem[] = [];
-
-    for (const url of searchUrls) {
+    // Strategy 2: If no synced lyrics in candidates, try exact get or keyword search
+    if (!candidates.some((c) => !!c.syncedLyrics)) {
+      const url2 = `https://lrclib.net/api/search?q=${encodeURIComponent(cTitle + ' ' + cArtist)}`;
       try {
-        const res = await fetch(url, { headers, signal: AbortSignal.timeout(3500) });
-        if (res.ok) {
-          const list = (await res.json()) as LrcItem[];
-          if (Array.isArray(list) && list.length > 0) {
-            candidates.push(...list);
-            // If we found synced entries, break early to avoid unnecessary network latency
-            if (candidates.some((c) => !!c.syncedLyrics)) {
-              break;
-            }
+        const res2 = await fetch(url2, { headers, signal: AbortSignal.timeout(3500) });
+        if (res2.ok) {
+          const list2 = (await res2.json()) as LrcItem[];
+          if (Array.isArray(list2) && list2.length > 0) {
+            candidates.push(...list2);
           }
         }
       } catch {
-        // try next fallback query
+        // ignore
       }
     }
 
@@ -146,6 +150,8 @@ async function fetchLyricsForTrack(
     });
 
     if (unique.length === 0) {
+      // Cache empty response with cooldown so we don't spam lrclib
+      lyricsCache.set(cacheKey, null);
       pendingLyricsFetches.delete(cacheKey);
       return null;
     }
@@ -157,7 +163,7 @@ async function fetchLyricsForTrack(
         hasHangul(item.plainLyrics || '') ||
         hasHangul(item.artistName || '') ||
         hasHangul(item.trackName || '') ||
-        /boa|woodz|vixx|bts|blackpink|exo|twice|newjeans|aespa|stray kids|seventeen|taeyeon|iu|monsta x|red velvet|nct|ateez|mc mong/i.test(
+        /boa|woodz|vixx|tvxq|bts|blackpink|exo|twice|newjeans|aespa|stray kids|seventeen|taeyeon|iu|monsta x|red velvet|nct|ateez|mc mong|bigbang|shinee/i.test(
           cArtist
         )
     );
@@ -226,6 +232,7 @@ async function fetchLyricsForTrack(
       }
     }
 
+    lyricsCache.set(cacheKey, null);
     pendingLyricsFetches.delete(cacheKey);
     return null;
   } catch {
@@ -305,6 +312,7 @@ async function fetchArtworkForTrack(title: string, artist: string): Promise<stri
 export function nowPlayingPlugin(): Plugin {
   let cachedMediaInfo: NowPlayingData | null = null;
   let child: ChildProcess | null = null;
+  let lastPrefetchedTrackKey: string | null = null;
 
   return {
     name: 'vite-now-playing-plugin',
@@ -344,24 +352,29 @@ export function nowPlayingPlugin(): Plugin {
 
                     const cleanTitle = cleanTrackTitle(data.title) || data.title.trim();
                     const cleanArtist = cleanArtistName(data.artist || '') || (data.artist || '').trim();
+                    const trackKey = `${cleanTitle.toLowerCase()} - ${cleanArtist.toLowerCase()}`;
 
-                    // Pre-fetch artwork if not cached
-                    if (!cachedMediaInfo.artwork) {
-                      const cacheKey = `${cleanTitle.toLowerCase()} - ${cleanArtist.toLowerCase()}`;
-                      const cached = artworkCache.get(cacheKey);
-                      if (cached) {
-                        cachedMediaInfo.artwork = cached;
-                      } else {
-                        fetchArtworkForTrack(data.title, data.artist || '').then((art) => {
-                          if (art && cachedMediaInfo && cachedMediaInfo.title === data.title) {
-                            cachedMediaInfo.artwork = art;
-                          }
-                        });
+                    // Pre-fetch artwork and lyrics strictly ONCE per song change
+                    if (lastPrefetchedTrackKey !== trackKey) {
+                      lastPrefetchedTrackKey = trackKey;
+
+                      // Pre-fetch artwork
+                      if (!cachedMediaInfo.artwork) {
+                        const cached = artworkCache.get(trackKey);
+                        if (cached) {
+                          cachedMediaInfo.artwork = cached;
+                        } else {
+                          fetchArtworkForTrack(data.title, data.artist || '').then((art) => {
+                            if (art && cachedMediaInfo && cachedMediaInfo.title === data.title) {
+                              cachedMediaInfo.artwork = art;
+                            }
+                          });
+                        }
                       }
-                    }
 
-                    // Pre-fetch lyrics in background with album and duration hints
-                    fetchLyricsForTrack(cleanTitle, cleanArtist, data.duration, data.album);
+                      // Pre-fetch lyrics strictly once
+                      fetchLyricsForTrack(cleanTitle, cleanArtist, data.duration, data.album);
+                    }
                   }
                 } catch {
                   // ignore JSON parse errors

@@ -49,15 +49,10 @@ export const PlayerDeck: React.FC = () => {
   } | null>(null);
   const [localArtwork, setLocalArtwork] = useState<string | null>(null);
   const prevVolumeRef = useRef(volume);
+  const lastFetchedLiveTrackRef = useRef<string | null>(null);
 
-  // Poll SMTC metadata when live input is active
+  // Poll SMTC metadata continuously so desktop/Spotify tracks and lyrics are always synchronized
   useEffect(() => {
-    if (!isLiveInput) {
-      setLiveElapsed(0);
-      setLiveSmtcData(null);
-      return;
-    }
-
     const timer = setInterval(() => {
       setLiveElapsed(prev => prev + 1);
     }, 1000);
@@ -70,7 +65,13 @@ export const PlayerDeck: React.FC = () => {
           if (data && data.title && data.title.trim().length > 0) {
             setLiveSmtcData(data);
             usePlayerStore.getState().setLiveTrackInfo(data.title, data.artist || 'SPOTIFY');
-            useLyricsStore.getState().fetchLyrics(data.title, data.artist || '', data.duration, data.album);
+
+            // Strictly fetch lyrics once per unique track
+            const trackSig = `${data.title} - ${data.artist || ''}`;
+            if (lastFetchedLiveTrackRef.current !== trackSig) {
+              lastFetchedLiveTrackRef.current = trackSig;
+              useLyricsStore.getState().fetchLyrics(data.title, data.artist || '', data.duration, data.album);
+            }
           }
         }
       } catch {
@@ -85,7 +86,7 @@ export const PlayerDeck: React.FC = () => {
       clearInterval(timer);
       clearInterval(smtcInterval);
     };
-  }, [isLiveInput]);
+  }, []);
 
   const currentTrack = currentTrackIndex >= 0 && currentTrackIndex < tracks.length
     ? tracks[currentTrackIndex]
@@ -144,13 +145,11 @@ export const PlayerDeck: React.FC = () => {
     const syncLyricsLoop = () => {
       animId = requestAnimationFrame(syncLyricsLoop);
       const VOCAL_ATTACK_LEAD = 0.35; // 350ms lead-in compensates for human vocal attack perception
-      if (isLiveInput) {
-        if (liveSmtcData) {
-          const isPlaying = liveSmtcData.status === 'Playing';
-          const elapsed = isPlaying ? (performance.now() - lastSyncTimeRef.current.timestamp) / 1000 : 0;
-          const currentPrecise = Math.max(0, lastSyncTimeRef.current.pos + elapsed + VOCAL_ATTACK_LEAD);
-          useLyricsStore.getState().updateActiveLine(currentPrecise);
-        }
+      if (liveSmtcData && liveSmtcData.position !== undefined) {
+        const isPlaying = liveSmtcData.status === 'Playing';
+        const elapsed = isPlaying ? (performance.now() - lastSyncTimeRef.current.timestamp) / 1000 : 0;
+        const currentPrecise = Math.max(0, lastSyncTimeRef.current.pos + elapsed + VOCAL_ATTACK_LEAD);
+        useLyricsStore.getState().updateActiveLine(currentPrecise);
       } else {
         const audio = getGlobalAudio();
         if (audio) {
@@ -403,9 +402,9 @@ export const PlayerDeck: React.FC = () => {
         <div className="flex items-center gap-3 border-l border-white/20 pl-2.5 pointer-events-auto">
           {/* Album Artwork Frame */}
           <div className="relative w-11 h-11 flex-shrink-0 bg-white/5 border border-white/20 rounded-[1px] overflow-hidden shadow-[0_0_12px_rgba(0,0,0,0.8)] flex items-center justify-center group">
-            {(isLiveInput ? (liveSmtcData?.artwork || null) : localArtwork) ? (
+            {(liveSmtcData?.artwork || localArtwork) ? (
               <img
-                src={(isLiveInput ? liveSmtcData?.artwork : localArtwork)!}
+                src={(liveSmtcData?.artwork || localArtwork)!}
                 alt="Album Cover"
                 className="w-full h-full object-cover select-none filter contrast-105"
               />
@@ -424,9 +423,9 @@ export const PlayerDeck: React.FC = () => {
           <div className="flex flex-col gap-0.5 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-[8px] text-neutral-500 uppercase tracking-widest">
-                {isLiveInput ? 'LIVE INGESTION // CHANNEL A' : 'AUDIO CARRIER // CHANNEL A'}
+                {liveSmtcData?.title || isLiveInput ? 'LIVE INGESTION // CHANNEL A' : 'AUDIO CARRIER // CHANNEL A'}
               </span>
-              {isLiveInput && (
+              {(liveSmtcData?.title || isLiveInput) && (
                 <span className="inline-flex items-center gap-1 text-[8px] text-white font-mono tracking-widest uppercase">
                   <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff] animate-pulse" />
                   ACTIVE
@@ -434,14 +433,14 @@ export const PlayerDeck: React.FC = () => {
               )}
             </div>
             <div className="text-xs font-bold text-white tracking-wider truncate max-w-[200px] sm:max-w-[260px] md:max-w-xs">
-              {isLiveInput
-                ? (liveSmtcData?.title || liveTrackTitle || 'SPOTIFY LIVE STREAM').toUpperCase()
+              {liveSmtcData?.title
+                ? liveSmtcData.title.toUpperCase()
                 : (currentTrack ? currentTrack.title.toUpperCase() : 'NO TRACK LOADED')}
             </div>
             <div className="text-[9.5px] text-neutral-400 tracking-wider truncate max-w-[200px] sm:max-w-[260px] md:max-w-xs">
-              {isLiveInput
-                ? `${(liveSmtcData?.artist || liveTrackArtist || 'DESKTOP AUDIO').toUpperCase()}${
-                    liveSmtcData?.album ? ` // ${liveSmtcData.album.toUpperCase()}` : ''
+              {liveSmtcData?.title
+                ? `${(liveSmtcData.artist || 'DESKTOP AUDIO').toUpperCase()}${
+                    liveSmtcData.album ? ` // ${liveSmtcData.album.toUpperCase()}` : ''
                   }`
                 : (currentTrack ? currentTrack.artist.toUpperCase() : 'DRAG & DROP AUDIO FILE')}
             </div>

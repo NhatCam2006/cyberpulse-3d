@@ -56,8 +56,8 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     const cArtist = cleanArtistName(artist) || (artist || '').trim();
     const trackKey = `${cTitle.toLowerCase()} - ${cArtist.toLowerCase()}`;
 
-    // Avoid duplicate fetch for same track
-    if (get().currentTrackKey === trackKey && (get().lines.length > 0 || get().plainLyrics)) {
+    // Avoid duplicate fetch for same track or while fetch is already in flight
+    if (get().currentTrackKey === trackKey && (get().lines.length > 0 || get().isLoading)) {
       return;
     }
 
@@ -136,7 +136,10 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
         activeLineIndex: best,
         activeLine: best >= 0 ? lines[best] : null,
         prevLine: best > 0 ? lines[best - 1] : null,
-        nextLine: best >= 0 && best + 1 < lines.length ? lines[best + 1] : null,
+        // Before first line begins (during song intro), preview lines[0] so the user knows lyrics are loaded!
+        nextLine: best >= 0
+          ? (best + 1 < lines.length ? lines[best + 1] : null)
+          : (lines.length > 0 ? lines[0] : null),
       });
     }
   },
