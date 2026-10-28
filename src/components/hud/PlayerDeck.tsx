@@ -359,64 +359,82 @@ export const PlayerDeck: React.FC = () => {
       */}
       
       {/* 1. Hairline Spectrum & Scrubbing Rail (Directly on Deep Space Canvas) */}
-      <div className="w-full px-6 mb-3 pointer-events-auto flex flex-col items-center">
-        {/* Floating Spectrum Bars (16px high, pure transparency) */}
-        <div className="w-full h-3 relative overflow-hidden pointer-events-none">
+      <div className="w-full px-6 mb-2 pointer-events-auto flex flex-col">
+        {/* Floating Spectrum Bars (10px high, pure transparency) */}
+        <div className="w-full h-2.5 relative overflow-hidden pointer-events-none mb-0.5">
           <canvas
             ref={canvasRef}
             width={1280}
-            height={16}
-            className="w-full h-full block opacity-75"
+            height={10}
+            className="w-full h-full block opacity-60"
           />
         </div>
 
-        {/* 1px Hairline Scrubbing Rail */}
-        <div
-          className="group relative w-full h-2.5 flex items-center cursor-pointer"
-          onClick={handleProgressBarClick}
-          title={isLiveInput ? 'Live Audio Stream' : 'Click to seek position'}
-        >
-          {/* Subtle Background Guide Track */}
-          <div className="w-full h-[1px] bg-white/10 group-hover:bg-white/25 transition-colors" />
+        {/* 1px Hairline Scrubbing Rail Flanked by Timestamps */}
+        <div className="w-full flex items-center gap-3 font-mono text-[9px] tabular-nums select-none">
+          <span className="text-neutral-400 font-medium min-w-[32px] text-right">
+            {isLiveInput
+              ? formatTime(liveSmtcData?.position || 0)
+              : isPlaying
+              ? formatTime(currentTime)
+              : '00:00'}
+          </span>
 
-          {/* Active Elapsed Horizon or Live Sweep */}
-          {isLiveInput && (!liveSmtcData?.duration || liveSmtcData.duration <= 0) ? (
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div
+            className="group relative flex-1 h-3 flex items-center cursor-pointer"
+            onClick={handleProgressBarClick}
+            title={isLiveInput ? 'Live Audio Stream' : 'Click to seek position'}
+          >
+            {/* Subtle Background Guide Track */}
+            <div className="w-full h-[1px] bg-white/10 group-hover:bg-white/25 transition-colors" />
+
+            {/* Active Elapsed Horizon or Live Sweep */}
+            {isLiveInput && (!liveSmtcData?.duration || liveSmtcData.duration <= 0) ? (
+              <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div
+                  className="h-[1px] w-36 bg-gradient-to-r from-transparent via-white to-transparent will-change-transform opacity-75"
+                  style={{
+                    animation: 'liveScan 2.5s ease-in-out infinite alternate',
+                  }}
+                />
+              </div>
+            ) : (
               <div
-                className="h-[1px] w-36 bg-gradient-to-r from-transparent via-white to-transparent will-change-transform opacity-75"
+                className="absolute left-0 h-[1px] bg-white shadow-[0_0_6px_#ffffff] transition-all"
                 style={{
-                  animation: 'liveScan 2.5s ease-in-out infinite alternate',
+                  width: `${Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      isLiveInput && liveSmtcData?.duration
+                        ? ((liveSmtcData.position || 0) / liveSmtcData.duration) * 100
+                        : isPlaying
+                        ? playbackProgress * 100
+                        : 0
+                    )
+                  )}%`,
                 }}
               />
-            </div>
-          ) : (
-            <div
-              className="absolute left-0 h-[1px] bg-white shadow-[0_0_6px_#ffffff] transition-all"
-              style={{
-                width: `${Math.min(
-                  100,
-                  Math.max(
-                    0,
-                    isLiveInput && liveSmtcData?.duration
-                      ? ((liveSmtcData.position || 0) / liveSmtcData.duration) * 100
-                      : isPlaying
-                      ? playbackProgress * 100
-                      : 0
-                  )
-                )}%`,
-              }}
-            />
-          )}
+            )}
 
-          {/* Precision Micro Crosshair Marker on Hover */}
-          {!isLiveInput && isPlaying && (
-            <div
-              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-2 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ left: `${Math.min(100, Math.max(0, playbackProgress * 100))}%` }}
-            >
-              <span className="text-[10px] text-white font-bold leading-none select-none">+</span>
-            </div>
-          )}
+            {/* Precision Micro Crosshair Marker on Hover */}
+            {!isLiveInput && isPlaying && (
+              <div
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-2 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{ left: `${Math.min(100, Math.max(0, playbackProgress * 100))}%` }}
+              >
+                <span className="text-[10px] text-white font-bold leading-none select-none">+</span>
+              </div>
+            )}
+          </div>
+
+          <span className="text-neutral-500 min-w-[32px]">
+            {isLiveInput
+              ? formatTime(liveSmtcData?.duration || 0)
+              : isPlaying
+              ? formatTime(duration)
+              : '00:00'}
+          </span>
         </div>
       </div>
 
@@ -470,75 +488,43 @@ export const PlayerDeck: React.FC = () => {
         </div>
 
         {/* Bottom-Center: Pure Typographic Audio Controls */}
-        <div className="flex flex-col items-center justify-center h-11 gap-1.5 pointer-events-auto select-none">
-          <div className="flex items-center gap-3">
-            {/* Prev */}
-            <button
-              onClick={handlePlayPrev}
-              disabled={!isLiveInput && tracks.length <= 1}
-              className="text-neutral-400 hover:text-white transition-colors cursor-pointer disabled:opacity-20 text-[10px] tracking-widest font-mono"
-              title={isLiveInput ? 'Previous Track (Spotify)' : 'Previous Track'}
-            >
-              [ |◁ ]
-            </button>
+        <div className="flex items-center justify-center h-11 gap-4 pointer-events-auto select-none">
+          {/* Prev */}
+          <button
+            onClick={handlePlayPrev}
+            disabled={!isLiveInput && tracks.length <= 1}
+            className="text-neutral-400 hover:text-white transition-colors cursor-pointer disabled:opacity-20 text-[11px] tracking-widest font-mono"
+            title={isLiveInput ? 'Previous Track (Spotify)' : 'Previous Track'}
+          >
+            [ |◁ ]
+          </button>
 
-            {/* Play / Pause - Minimalist Glass Reticle */}
-            <button
-              onClick={handleTogglePlay}
-              className="w-7 h-7 rounded-full border border-white/40 hover:border-white bg-white/5 hover:bg-white/15 text-white flex items-center justify-center transition-all cursor-pointer shadow-[0_0_8px_rgba(255,255,255,0.1)] active:scale-95"
-              title={
-                isLiveInput
-                  ? (liveSmtcData ? (liveSmtcData.status === 'Playing' ? 'Pause (Spotify)' : 'Play (Spotify)') : 'Play / Pause (Spotify)')
-                  : (isPlaying ? 'Pause' : 'Play')
-              }
-            >
-              {(isLiveInput ? (liveSmtcData ? liveSmtcData.status === 'Playing' : true) : isPlaying) ? (
-                <Pause className="w-3 h-3 fill-white stroke-none" />
-              ) : (
-                <Play className="w-3 h-3 fill-white stroke-none ml-0.5" />
-              )}
-            </button>
-
-            {/* Next */}
-            <button
-              onClick={handlePlayNext}
-              disabled={!isLiveInput && tracks.length <= 1}
-              className="text-neutral-400 hover:text-white transition-colors cursor-pointer disabled:opacity-20 text-[10px] tracking-widest font-mono"
-              title={isLiveInput ? 'Next Track (Spotify)' : 'Next Track'}
-            >
-              [ ▷| ]
-            </button>
-          </div>
-
-          {/* Elapsed / Duration Timestamp */}
-          <div className="text-[9.5px] text-neutral-400 font-mono tracking-[0.2em]">
-            {isLiveInput ? (
-              <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff] animate-pulse" />
-                {liveSmtcData?.duration && liveSmtcData.duration > 0 ? (
-                  <>
-                    <span className="text-white font-semibold">{formatTime(liveSmtcData.position || 0)}</span>
-                    <span className="text-neutral-600 mx-1.5">//</span>
-                    <span>{formatTime(liveSmtcData.duration)}</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-white font-semibold">LIVE [{formatTime(liveElapsed)}]</span>
-                    <span className="text-neutral-600 mx-1.5">//</span>
-                    <span className="text-neutral-400">REALTIME FEED</span>
-                  </>
-                )}
-              </div>
-            ) : isPlaying ? (
-              <>
-                <span className="text-white font-semibold">{formatTime(currentTime)}</span>
-                <span className="text-neutral-600 mx-1.5">//</span>
-                <span>{formatTime(duration)}</span>
-              </>
+          {/* Play / Pause - Minimalist Glass Reticle */}
+          <button
+            onClick={handleTogglePlay}
+            className="w-8 h-8 rounded-full border border-white/40 hover:border-white bg-white/5 hover:bg-white/15 text-white flex items-center justify-center transition-all cursor-pointer shadow-[0_0_8px_rgba(255,255,255,0.1)] active:scale-95"
+            title={
+              isLiveInput
+                ? (liveSmtcData ? (liveSmtcData.status === 'Playing' ? 'Pause (Spotify)' : 'Play (Spotify)') : 'Play / Pause (Spotify)')
+                : (isPlaying ? 'Pause' : 'Play')
+            }
+          >
+            {(isLiveInput ? (liveSmtcData ? liveSmtcData.status === 'Playing' : true) : isPlaying) ? (
+              <Pause className="w-3.5 h-3.5 fill-white stroke-none" />
             ) : (
-              <span className="text-neutral-500">00:00 // 00:00</span>
+              <Play className="w-3.5 h-3.5 fill-white stroke-none ml-0.5" />
             )}
-          </div>
+          </button>
+
+          {/* Next */}
+          <button
+            onClick={handlePlayNext}
+            disabled={!isLiveInput && tracks.length <= 1}
+            className="text-neutral-400 hover:text-white transition-colors cursor-pointer disabled:opacity-20 text-[11px] tracking-widest font-mono"
+            title={isLiveInput ? 'Next Track (Spotify)' : 'Next Track'}
+          >
+            [ ▷| ]
+          </button>
         </div>
 
         {/* Bottom-Right: Master Stage & Gain Slider (Matches Right Flank border-r) */}
