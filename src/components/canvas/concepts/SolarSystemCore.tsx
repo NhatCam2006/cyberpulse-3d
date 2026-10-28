@@ -52,7 +52,7 @@ import {
   auroralCurtainFragmentShader,
 } from '../../../shaders/auroralCurtainShader';
 import { SolarCoronaBillboard } from './SolarCoronaBillboard';
-import { SolarPolarJets } from './SolarPolarJets';
+import { SolarEquatorialFilament } from './SolarEquatorialFilament';
 import { InterstellarBolide } from './InterstellarBolide';
 import { KuiperRadarBoundary } from './KuiperRadarBoundary';
 import { OuterHeliosphericPulseRing } from './OuterHeliosphericPulseRing';
@@ -924,7 +924,7 @@ export const SolarSystemCore = () => {
 
       {/* Astrophysical Solar Corona Optical Diffraction Rays & Halo */}
       <SolarCoronaBillboard />
-      <SolarPolarJets />
+      <SolarEquatorialFilament />
 
       {/* Hyperbolic Interstellar Bolide / Meteor (Ephemeral Gravitational Slingshot) */}
       <InterstellarBolide />
