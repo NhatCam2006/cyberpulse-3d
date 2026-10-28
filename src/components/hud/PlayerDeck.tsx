@@ -43,9 +43,12 @@ export const PlayerDeck: React.FC = () => {
     title?: string;
     artist?: string;
     album?: string;
+    artwork?: string;
   } | null>(null);
+  const [localArtwork, setLocalArtwork] = useState<string | null>(null);
   const prevVolumeRef = useRef(volume);
 
+  // Poll SMTC metadata when live input is active
   useEffect(() => {
     if (!isLiveInput) {
       setLiveElapsed(0);
@@ -84,6 +87,36 @@ export const PlayerDeck: React.FC = () => {
   const currentTrack = currentTrackIndex >= 0 && currentTrackIndex < tracks.length
     ? tracks[currentTrackIndex]
     : null;
+
+  // Fetch album art for local / offline playback
+  useEffect(() => {
+    if (isLiveInput || !currentTrack) {
+      setLocalArtwork(null);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchLocalArt = async () => {
+      try {
+        const res = await fetch(
+          `/api/artwork?term=${encodeURIComponent(currentTrack.title)}&artist=${encodeURIComponent(currentTrack.artist)}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled && data.artwork) {
+            setLocalArtwork(data.artwork);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    fetchLocalArt();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLiveInput, currentTrack?.title, currentTrack?.artist]);
 
   // Audio element listeners for time update (triggered only by native audio event, not rAF)
   useEffect(() => {
@@ -265,29 +298,51 @@ export const PlayerDeck: React.FC = () => {
       <div className="w-full px-6 pb-5 flex items-end justify-between font-mono">
         
         {/* Bottom-Left: Audio Carrier & Metadata (Matches Left Flank border-l) */}
-        <div className="flex flex-col gap-0.5 border-l border-white/20 pl-2.5 pointer-events-auto">
-          <div className="flex items-center gap-2">
-            <span className="text-[8px] text-neutral-500 uppercase tracking-widest">
-              {isLiveInput ? 'LIVE INGESTION // CHANNEL A' : 'AUDIO CARRIER // CHANNEL A'}
-            </span>
-            {isLiveInput && (
-              <span className="inline-flex items-center gap-1 text-[8px] text-white font-mono tracking-widest uppercase">
-                <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff] animate-pulse" />
-                ACTIVE
-              </span>
+        <div className="flex items-center gap-3 border-l border-white/20 pl-2.5 pointer-events-auto">
+          {/* Album Artwork Frame */}
+          <div className="relative w-11 h-11 flex-shrink-0 bg-white/5 border border-white/20 rounded-[1px] overflow-hidden shadow-[0_0_12px_rgba(0,0,0,0.8)] flex items-center justify-center group">
+            {(isLiveInput ? (liveSmtcData?.artwork || null) : localArtwork) ? (
+              <img
+                src={(isLiveInput ? liveSmtcData?.artwork : localArtwork)!}
+                alt="Album Cover"
+                className="w-full h-full object-cover select-none filter contrast-105"
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-black/40 text-neutral-600 select-none">
+                <span className="text-[10px] font-mono tracking-tighter text-white/40">[ ◰ ]</span>
+                <span className="text-[6.5px] uppercase tracking-widest text-neutral-500 mt-0.5">AUDIO</span>
+              </div>
             )}
+            {/* Swiss Brutalist corner reticles */}
+            <div className="absolute top-0 right-0 w-1.5 h-1.5 border-t border-r border-white/40 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-1.5 h-1.5 border-b border-l border-white/40 pointer-events-none" />
           </div>
-          <div className="text-xs font-bold text-white tracking-wider truncate max-w-[240px] md:max-w-xs">
-            {isLiveInput
-              ? (liveSmtcData?.title || liveTrackTitle || 'SPOTIFY LIVE STREAM').toUpperCase()
-              : (currentTrack ? currentTrack.title.toUpperCase() : 'NO TRACK LOADED')}
-          </div>
-          <div className="text-[9.5px] text-neutral-400 tracking-wider truncate max-w-[240px] md:max-w-xs">
-            {isLiveInput
-              ? `${(liveSmtcData?.artist || liveTrackArtist || 'DESKTOP AUDIO').toUpperCase()}${
-                  liveSmtcData?.album ? ` // ${liveSmtcData.album.toUpperCase()}` : ''
-                }`
-              : (currentTrack ? currentTrack.artist.toUpperCase() : 'DRAG & DROP AUDIO FILE')}
+
+          {/* Song Metadata Text Block */}
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[8px] text-neutral-500 uppercase tracking-widest">
+                {isLiveInput ? 'LIVE INGESTION // CHANNEL A' : 'AUDIO CARRIER // CHANNEL A'}
+              </span>
+              {isLiveInput && (
+                <span className="inline-flex items-center gap-1 text-[8px] text-white font-mono tracking-widest uppercase">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff] animate-pulse" />
+                  ACTIVE
+                </span>
+              )}
+            </div>
+            <div className="text-xs font-bold text-white tracking-wider truncate max-w-[200px] sm:max-w-[260px] md:max-w-xs">
+              {isLiveInput
+                ? (liveSmtcData?.title || liveTrackTitle || 'SPOTIFY LIVE STREAM').toUpperCase()
+                : (currentTrack ? currentTrack.title.toUpperCase() : 'NO TRACK LOADED')}
+            </div>
+            <div className="text-[9.5px] text-neutral-400 tracking-wider truncate max-w-[200px] sm:max-w-[260px] md:max-w-xs">
+              {isLiveInput
+                ? `${(liveSmtcData?.artist || liveTrackArtist || 'DESKTOP AUDIO').toUpperCase()}${
+                    liveSmtcData?.album ? ` // ${liveSmtcData.album.toUpperCase()}` : ''
+                  }`
+                : (currentTrack ? currentTrack.artist.toUpperCase() : 'DRAG & DROP AUDIO FILE')}
+            </div>
           </div>
         </div>
 

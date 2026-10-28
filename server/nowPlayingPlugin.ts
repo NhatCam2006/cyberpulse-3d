@@ -10,6 +10,78 @@ export interface NowPlayingData {
   position?: number;
   duration?: number;
   source?: string;
+  artwork?: string;
+}
+
+const artworkCache = new Map<string, string | null>();
+const pendingFetches = new Set<string>();
+
+async function fetchArtworkForTrack(title: string, artist: string): Promise<string | null> {
+  const cleanTitle = title.replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
+  const cleanArtist = artist.replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
+  const cacheKey = `${cleanTitle.toLowerCase()} - ${cleanArtist.toLowerCase()}`;
+
+  if (artworkCache.has(cacheKey)) {
+    return artworkCache.get(cacheKey) || null;
+  }
+  if (pendingFetches.has(cacheKey)) {
+    return null;
+  }
+
+  pendingFetches.add(cacheKey);
+
+  try {
+    const query = `${cleanTitle} ${cleanArtist}`.trim() || cleanTitle;
+
+    // 1. Try iTunes Search API (High resolution 600x600)
+    try {
+      const itunesRes = await fetch(
+        `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=1`,
+        { signal: AbortSignal.timeout(3000) }
+      );
+      if (itunesRes.ok) {
+        const json = (await itunesRes.json()) as { results?: Array<{ artworkUrl100?: string }> };
+        if (json.results && json.results.length > 0 && json.results[0].artworkUrl100) {
+          const hdUrl = json.results[0].artworkUrl100.replace('100x100bb', '600x600bb');
+          artworkCache.set(cacheKey, hdUrl);
+          pendingFetches.delete(cacheKey);
+          return hdUrl;
+        }
+      }
+    } catch {
+      // Fall through to Deezer
+    }
+
+    // 2. Try Deezer Search API
+    try {
+      const deezerRes = await fetch(
+        `https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=1`,
+        { signal: AbortSignal.timeout(3000) }
+      );
+      if (deezerRes.ok) {
+        const json = (await deezerRes.json()) as {
+          data?: Array<{ album?: { cover_big?: string; cover_medium?: string } }>;
+        };
+        if (json.data && json.data.length > 0 && json.data[0].album) {
+          const cover = json.data[0].album.cover_big || json.data[0].album.cover_medium;
+          if (cover) {
+            artworkCache.set(cacheKey, cover);
+            pendingFetches.delete(cacheKey);
+            return cover;
+          }
+        }
+      }
+    } catch {
+      // Fall through
+    }
+
+    artworkCache.set(cacheKey, null);
+    pendingFetches.delete(cacheKey);
+    return null;
+  } catch {
+    pendingFetches.delete(cacheKey);
+    return null;
+  }
 }
 
 export function nowPlayingPlugin(): Plugin {
@@ -46,7 +118,27 @@ export function nowPlayingPlugin(): Plugin {
                 try {
                   const data = JSON.parse(trimmed) as NowPlayingData;
                   if (data && data.title) {
-                    cachedMediaInfo = data;
+                    const prevArtwork = cachedMediaInfo?.title === data.title ? cachedMediaInfo.artwork : undefined;
+                    cachedMediaInfo = {
+                      ...data,
+                      artwork: prevArtwork,
+                    };
+
+                    if (!cachedMediaInfo.artwork) {
+                      const cleanTitle = data.title.replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
+                      const cleanArtist = (data.artist || '').replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
+                      const cacheKey = `${cleanTitle.toLowerCase()} - ${cleanArtist.toLowerCase()}`;
+                      const cached = artworkCache.get(cacheKey);
+                      if (cached) {
+                        cachedMediaInfo.artwork = cached;
+                      } else {
+                        fetchArtworkForTrack(data.title, data.artist || '').then((art) => {
+                          if (art && cachedMediaInfo && cachedMediaInfo.title === data.title) {
+                            cachedMediaInfo.artwork = art;
+                          }
+                        });
+                      }
+                    }
                   }
                 } catch {
                   // ignore JSON parse errors
@@ -69,6 +161,29 @@ export function nowPlayingPlugin(): Plugin {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Cache-Control', 'no-store');
         res.end(JSON.stringify(cachedMediaInfo || { status: 'idle' }));
+      });
+
+      // Serve GET /api/artwork?term=...&artist=...
+      server.middlewares.use('/api/artwork', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+
+        try {
+          const url = new URL(req.url || '', 'http://localhost');
+          const term = url.searchParams.get('term') || '';
+          const artist = url.searchParams.get('artist') || '';
+
+          if (!term && !artist) {
+            res.end(JSON.stringify({ artwork: null }));
+            return;
+          }
+
+          const art = await fetchArtworkForTrack(term, artist);
+          res.end(JSON.stringify({ artwork: art }));
+        } catch {
+          res.end(JSON.stringify({ artwork: null }));
+        }
       });
 
       // Cleanup child process on server exit
