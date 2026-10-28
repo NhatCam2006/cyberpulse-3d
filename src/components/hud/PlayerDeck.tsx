@@ -70,7 +70,7 @@ export const PlayerDeck: React.FC = () => {
           if (data && data.title && data.title.trim().length > 0) {
             setLiveSmtcData(data);
             usePlayerStore.getState().setLiveTrackInfo(data.title, data.artist || 'SPOTIFY');
-            useLyricsStore.getState().fetchLyrics(data.title, data.artist || '', data.duration);
+            useLyricsStore.getState().fetchLyrics(data.title, data.artist || '', data.duration, data.album);
           }
         }
       } catch {

@@ -55,10 +55,37 @@ function parseLrc(lrcText: string): LyricLine[] {
   return result.sort((a, b) => a.time - b.time);
 }
 
-async function fetchLyricsForTrack(title: string, artist: string, duration?: number): Promise<LyricsResponse | null> {
-  const cleanTitle = title.replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
-  const cleanArtist = artist.replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
-  const cacheKey = `${cleanTitle.toLowerCase()} - ${cleanArtist.toLowerCase()}`;
+function hasHangul(str: string): boolean {
+  return /[\uac00-\ud7af]/.test(str || '');
+}
+
+function hasJapanese(str: string): boolean {
+  return /[\u3040-\u30ff]/.test(str || '');
+}
+
+function cleanTrackTitle(title: string): string {
+  return title
+    .replace(/\s*[\(\[](feat|ft|with|prod|explicit|clean|remastered|live|version|ver\.).*?[\)\]]/gi, '')
+    .replace(/\s*[\(\[].*?[\)\]]/g, '')
+    .trim();
+}
+
+function cleanArtistName(artist: string): string {
+  return artist
+    .split(/[,&/]/)[0]
+    .replace(/\s*[\(\[](feat|ft|with|prod).*?[\)\]]/gi, '')
+    .trim();
+}
+
+async function fetchLyricsForTrack(
+  title: string,
+  artist: string,
+  duration?: number,
+  album?: string
+): Promise<LyricsResponse | null> {
+  const cTitle = cleanTrackTitle(title) || title.trim();
+  const cArtist = cleanArtistName(artist) || artist.trim();
+  const cacheKey = `${cTitle.toLowerCase()} - ${cArtist.toLowerCase()}`;
 
   if (lyricsCache.has(cacheKey)) {
     return lyricsCache.get(cacheKey) || null;
@@ -72,97 +99,133 @@ async function fetchLyricsForTrack(title: string, artist: string, duration?: num
   try {
     const headers = { 'User-Agent': 'Cyberpulse3D/1.0.0 (https://github.com/NhatCam2006/cyberpulse-3d)' };
 
-    // 1. Try exact match on lrclib.net /api/get
-    let getUrl = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle)}&artist_name=${encodeURIComponent(cleanArtist)}`;
-    if (duration && duration > 0) {
-      getUrl += `&duration=${Math.round(duration)}`;
+    // Multi-tier query strategies for maximum coverage
+    const searchUrls: string[] = [
+      `https://lrclib.net/api/search?track_name=${encodeURIComponent(cTitle)}&artist_name=${encodeURIComponent(cArtist)}`,
+      `https://lrclib.net/api/search?q=${encodeURIComponent(cTitle + ' ' + cArtist)}`,
+      `https://lrclib.net/api/search?q=${encodeURIComponent(title.trim() + ' ' + artist.trim())}`,
+      `https://lrclib.net/api/search?q=${encodeURIComponent(cArtist + ' ' + cTitle)}`
+    ];
+
+    interface LrcItem {
+      id: number;
+      trackName?: string;
+      artistName?: string;
+      albumName?: string;
+      duration?: number;
+      syncedLyrics?: string;
+      plainLyrics?: string;
     }
 
-    try {
-      const res = await fetch(getUrl, { headers, signal: AbortSignal.timeout(4000) });
-      if (res.ok) {
-        const json = (await res.json()) as {
-          trackName?: string;
-          artistName?: string;
-          syncedLyrics?: string;
-          plainLyrics?: string;
-        };
+    const candidates: LrcItem[] = [];
 
-        if (json.syncedLyrics) {
-          const lines = parseLrc(json.syncedLyrics);
-          const response: LyricsResponse = {
-            trackName: json.trackName || title,
-            artistName: json.artistName || artist,
-            synced: true,
-            lines,
-            plainLyrics: json.plainLyrics,
-          };
-          lyricsCache.set(cacheKey, response);
-          pendingLyricsFetches.delete(cacheKey);
-          return response;
-        } else if (json.plainLyrics) {
-          const response: LyricsResponse = {
-            trackName: json.trackName || title,
-            artistName: json.artistName || artist,
-            synced: false,
-            lines: [],
-            plainLyrics: json.plainLyrics,
-          };
-          lyricsCache.set(cacheKey, response);
-          pendingLyricsFetches.delete(cacheKey);
-          return response;
-        }
-      }
-    } catch {
-      // Fall through to search
-    }
-
-    // 2. Fallback to lrclib.net /api/search
-    try {
-      const searchQuery = `${cleanTitle} ${cleanArtist}`.trim() || cleanTitle;
-      const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(searchQuery)}`;
-      const sRes = await fetch(searchUrl, { headers, signal: AbortSignal.timeout(4000) });
-      if (sRes.ok) {
-        const list = (await sRes.json()) as Array<{
-          trackName?: string;
-          artistName?: string;
-          syncedLyrics?: string;
-          plainLyrics?: string;
-        }>;
-
-        if (Array.isArray(list) && list.length > 0) {
-          const match = list.find((item) => !!item.syncedLyrics) || list[0];
-          if (match.syncedLyrics) {
-            const lines = parseLrc(match.syncedLyrics);
-            const response: LyricsResponse = {
-              trackName: match.trackName || title,
-              artistName: match.artistName || artist,
-              synced: true,
-              lines,
-              plainLyrics: match.plainLyrics,
-            };
-            lyricsCache.set(cacheKey, response);
-            pendingLyricsFetches.delete(cacheKey);
-            return response;
-          } else if (match.plainLyrics) {
-            const response: LyricsResponse = {
-              trackName: match.trackName || title,
-              artistName: match.artistName || artist,
-              synced: false,
-              lines: [],
-              plainLyrics: match.plainLyrics,
-            };
-            lyricsCache.set(cacheKey, response);
-            pendingLyricsFetches.delete(cacheKey);
-            return response;
+    for (const url of searchUrls) {
+      try {
+        const res = await fetch(url, { headers, signal: AbortSignal.timeout(3500) });
+        if (res.ok) {
+          const list = (await res.json()) as LrcItem[];
+          if (Array.isArray(list) && list.length > 0) {
+            candidates.push(...list);
+            // If we found synced entries, break early to avoid unnecessary network latency
+            if (candidates.some((c) => !!c.syncedLyrics)) {
+              break;
+            }
           }
         }
+      } catch {
+        // try next fallback query
       }
-    } catch {
-      // Fall through
     }
 
-    lyricsCache.set(cacheKey, null);
+    // Deduplicate by entry ID
+    const seen = new Set<number>();
+    const unique = candidates.filter((item) => {
+      if (!item || !item.id || seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+
+    if (unique.length === 0) {
+      pendingLyricsFetches.delete(cacheKey);
+      return null;
+    }
+
+    // Detect if this song has Korean context (Korean artist or any result has Hangul)
+    const isKoreanContext = unique.some(
+      (item) =>
+        hasHangul(item.syncedLyrics || '') ||
+        hasHangul(item.plainLyrics || '') ||
+        hasHangul(item.artistName || '') ||
+        hasHangul(item.trackName || '') ||
+        /boa|woodz|vixx|bts|blackpink|exo|twice|newjeans|aespa|stray kids|seventeen|taeyeon|iu|monsta x|red velvet|nct|ateez|mc mong/i.test(
+          cArtist
+        )
+    );
+
+    // Score and rank candidates
+    const scored = unique.map((item) => {
+      let score = 0;
+      const lrc = item.syncedLyrics || item.plainLyrics || '';
+
+      if (item.syncedLyrics) score += 60;
+      else if (item.plainLyrics) score += 10;
+
+      // Korean Hangul enforcement (keep Korean as native Korean characters, not Romanized or Japanese)
+      if (isKoreanContext) {
+        if (hasHangul(lrc)) {
+          score += 160; // Massively boost authentic native Korean Hangul
+        }
+        if (hasJapanese(lrc)) {
+          score -= 130; // Strongly penalize Japanese release versions of Korean tracks
+        }
+      }
+
+      // Duration proximity (closer to Spotify duration gets higher score)
+      if (duration && item.duration) {
+        const diff = Math.abs(duration - item.duration);
+        if (diff < 4) score += 35;
+        else if (diff < 10) score += 15;
+        else if (diff > 35) score -= 25;
+      }
+
+      // Album title match bonus
+      if (album && item.albumName && item.albumName.toLowerCase().includes(album.toLowerCase())) {
+        score += 20;
+      }
+
+      return { item, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    const best = scored[0]?.item;
+
+    if (best) {
+      if (best.syncedLyrics) {
+        const lines = parseLrc(best.syncedLyrics);
+        const response: LyricsResponse = {
+          trackName: best.trackName || title,
+          artistName: best.artistName || artist,
+          synced: true,
+          lines,
+          plainLyrics: best.plainLyrics,
+        };
+        lyricsCache.set(cacheKey, response);
+        pendingLyricsFetches.delete(cacheKey);
+        return response;
+      } else if (best.plainLyrics) {
+        const response: LyricsResponse = {
+          trackName: best.trackName || title,
+          artistName: best.artistName || artist,
+          synced: false,
+          lines: [],
+          plainLyrics: best.plainLyrics,
+        };
+        lyricsCache.set(cacheKey, response);
+        pendingLyricsFetches.delete(cacheKey);
+        return response;
+      }
+    }
+
     pendingLyricsFetches.delete(cacheKey);
     return null;
   } catch {
@@ -172,8 +235,8 @@ async function fetchLyricsForTrack(title: string, artist: string, duration?: num
 }
 
 async function fetchArtworkForTrack(title: string, artist: string): Promise<string | null> {
-  const cleanTitle = title.replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
-  const cleanArtist = artist.replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
+  const cleanTitle = cleanTrackTitle(title) || title.trim();
+  const cleanArtist = cleanArtistName(artist) || artist.trim();
   const cacheKey = `${cleanTitle.toLowerCase()} - ${cleanArtist.toLowerCase()}`;
 
   if (artworkCache.has(cacheKey)) {
@@ -279,8 +342,8 @@ export function nowPlayingPlugin(): Plugin {
                       artwork: prevArtwork,
                     };
 
-                    const cleanTitle = data.title.replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
-                    const cleanArtist = (data.artist || '').replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
+                    const cleanTitle = cleanTrackTitle(data.title) || data.title.trim();
+                    const cleanArtist = cleanArtistName(data.artist || '') || (data.artist || '').trim();
 
                     // Pre-fetch artwork if not cached
                     if (!cachedMediaInfo.artwork) {
@@ -297,8 +360,8 @@ export function nowPlayingPlugin(): Plugin {
                       }
                     }
 
-                    // Pre-fetch lyrics in background
-                    fetchLyricsForTrack(cleanTitle, cleanArtist, data.duration);
+                    // Pre-fetch lyrics in background with album and duration hints
+                    fetchLyricsForTrack(cleanTitle, cleanArtist, data.duration, data.album);
                   }
                 } catch {
                   // ignore JSON parse errors
@@ -388,7 +451,7 @@ export function nowPlayingPlugin(): Plugin {
         }
       });
 
-      // Serve GET /api/lyrics?track=...&artist=...&duration=...
+      // Serve GET /api/lyrics?track=...&artist=...&duration=...&album=...
       server.middlewares.use('/api/lyrics', async (req, res) => {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -398,6 +461,7 @@ export function nowPlayingPlugin(): Plugin {
           const url = new URL(req.url || '', 'http://localhost');
           const track = url.searchParams.get('track') || '';
           const artist = url.searchParams.get('artist') || '';
+          const album = url.searchParams.get('album') || '';
           const durStr = url.searchParams.get('duration');
           const duration = durStr ? parseFloat(durStr) : undefined;
 
@@ -406,7 +470,7 @@ export function nowPlayingPlugin(): Plugin {
             return;
           }
 
-          const lyrics = await fetchLyricsForTrack(track, artist, duration);
+          const lyrics = await fetchLyricsForTrack(track, artist, duration, album);
           res.end(JSON.stringify(lyrics || { synced: false, lines: [] }));
         } catch {
           res.end(JSON.stringify({ synced: false, lines: [] }));

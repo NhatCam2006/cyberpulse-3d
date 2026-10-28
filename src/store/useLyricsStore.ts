@@ -17,9 +17,23 @@ export interface LyricsState {
   activeLine: LyricLine | null;
   prevLine: LyricLine | null;
   nextLine: LyricLine | null;
-  fetchLyrics: (title: string, artist: string, duration?: number) => Promise<void>;
+  fetchLyrics: (title: string, artist: string, duration?: number, album?: string) => Promise<void>;
   updateActiveLine: (currentTime: number) => void;
   reset: () => void;
+}
+
+function cleanTrackTitle(title: string): string {
+  return title
+    .replace(/\s*[\(\[](feat|ft|with|prod|explicit|clean|remastered|live|version|ver\.).*?[\)\]]/gi, '')
+    .replace(/\s*[\(\[].*?[\)\]]/g, '')
+    .trim();
+}
+
+function cleanArtistName(artist: string): string {
+  return artist
+    .split(/[,&/]/)[0]
+    .replace(/\s*[\(\[](feat|ft|with|prod).*?[\)\]]/gi, '')
+    .trim();
 }
 
 export const useLyricsStore = create<LyricsState>((set, get) => ({
@@ -35,12 +49,12 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   prevLine: null,
   nextLine: null,
 
-  fetchLyrics: async (title: string, artist: string, duration?: number) => {
+  fetchLyrics: async (title: string, artist: string, duration?: number, album?: string) => {
     if (!title || !title.trim()) return;
 
-    const cleanTitle = title.replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
-    const cleanArtist = (artist || '').replace(/\s*[\(\[].*?[\)\]]/g, '').trim();
-    const trackKey = `${cleanTitle.toLowerCase()} - ${cleanArtist.toLowerCase()}`;
+    const cTitle = cleanTrackTitle(title) || title.trim();
+    const cArtist = cleanArtistName(artist) || (artist || '').trim();
+    const trackKey = `${cTitle.toLowerCase()} - ${cArtist.toLowerCase()}`;
 
     // Avoid duplicate fetch for same track
     if (get().currentTrackKey === trackKey && (get().lines.length > 0 || get().plainLyrics)) {
@@ -62,8 +76,9 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
 
     try {
       const durParam = duration && duration > 0 ? `&duration=${Math.round(duration)}` : '';
+      const albParam = album ? `&album=${encodeURIComponent(album)}` : '';
       const res = await fetch(
-        `/api/lyrics?track=${encodeURIComponent(cleanTitle)}&artist=${encodeURIComponent(cleanArtist)}${durParam}`
+        `/api/lyrics?track=${encodeURIComponent(cTitle)}&artist=${encodeURIComponent(cArtist)}${durParam}${albParam}`
       );
 
       if (res.ok) {
