@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import * as THREE from 'three';
 import {
   Activity,
   Camera,
@@ -12,6 +13,10 @@ import {
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { AudioEngine } from '../../audio/AudioEngine';
 import { SolarSystemHud } from './SolarSystemHud';
+import { computeHorizonOrbitalPosition } from '../canvas/concepts/HorizonSpacecraft';
+
+const _tempPos = new THREE.Vector3();
+const _nextPos = new THREE.Vector3();
 
 interface TopTelemetryProps {
   onToggleDrawer: () => void;
@@ -51,6 +56,12 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
   const midBarRef = useRef<HTMLDivElement>(null);
   const highBarRef = useRef<HTMLDivElement>(null);
   const beatBadgeRef = useRef<HTMLSpanElement>(null);
+
+  // Spacecraft Observation Deck Telemetry Refs (0 GC direct text updates)
+  const topVelRef = useRef<HTMLSpanElement>(null);
+  const topDistRef = useRef<HTMLSpanElement>(null);
+  const topStatusRef = useRef<HTMLSpanElement>(null);
+  const lastTelemetryUpdateRef = useRef<number>(0);
 
   const frameCountRef = useRef<number>(0);
   const lastFpsUpdateTimeRef = useRef<number>(performance.now());
@@ -106,6 +117,34 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
           beatBadgeRef.current.style.color = '#71717a';
           beatBadgeRef.current.style.textShadow = 'none';
           beatBadgeRef.current.style.opacity = '0.5';
+        }
+      }
+
+      // 3. Spacecraft Telemetry (Throttled to ~8 FPS / 120ms, 0 GC, 0 React re-renders)
+      const currentCameraMode = usePlayerStore.getState().cameraMode;
+      if (currentCameraMode === 'spacecraft' && now - lastTelemetryUpdateRef.current >= 120) {
+        lastTelemetryUpdateRef.current = now;
+        const timeSec = now * 0.001;
+        const selPlanet = usePlayerStore.getState().selectedPlanet;
+        const r = computeHorizonOrbitalPosition(timeSec, _tempPos, selPlanet);
+        computeHorizonOrbitalPosition(timeSec + 0.1, _nextPos, selPlanet);
+        const distDelta = _tempPos.distanceTo(_nextPos);
+        const speedApprox = (distDelta / 0.1) * 3.4 + 11.2;
+
+        if (topDistRef.current) {
+          if (selPlanet && selPlanet !== 'Sol') {
+            topDistRef.current.textContent = `LOW ORBIT // ${selPlanet.toUpperCase()}`;
+          } else if (selPlanet === 'Sol') {
+            topDistRef.current.textContent = `PERIHELION // SOL`;
+          } else {
+            topDistRef.current.textContent = `${r.toFixed(2)} AU`;
+          }
+        }
+        if (topVelRef.current) {
+          topVelRef.current.textContent = `${speedApprox.toFixed(1)} KM/S`;
+        }
+        if (topStatusRef.current) {
+          topStatusRef.current.textContent = selPlanet ? `INSERTION: ${selPlanet.toUpperCase()}` : 'CRUISE: GRAND TOUR';
         }
       }
 
@@ -190,6 +229,20 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
           </span>
         </div>
       </div>
+
+      {/* Center Section: Spacecraft Telemetry when aboard SS Horizon (Exact 50% Screen Center) */}
+      {cameraMode === 'spacecraft' && (
+        <div className="absolute left-1/2 -translate-x-1/2 top-5 hidden md:flex items-center gap-3 px-3.5 py-1 border border-white/15 bg-black/50 backdrop-blur-sm rounded-[1px] font-mono text-[9px] tracking-widest uppercase pointer-events-auto select-none shadow-[0_2px_12px_rgba(0,0,0,0.8)]">
+          <span className="flex h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+          <span className="text-white font-bold tracking-wider">SS HORIZON</span>
+          <span className="text-white/20">//</span>
+          <span className="text-neutral-400">V: <strong ref={topVelRef} className="text-white font-mono font-medium">11.9 KM/S</strong></span>
+          <span className="text-white/20">//</span>
+          <span className="text-neutral-400">R: <strong ref={topDistRef} className="text-white font-mono font-medium">0.07 AU</strong></span>
+          <span className="text-white/20">//</span>
+          <span ref={topStatusRef} className="text-neutral-300 font-medium">CRUISE: GRAND TOUR</span>
+        </div>
+      )}
 
       {/* Center Spacer: Pure Floating Horizon (No clutter) */}
       <div className="flex-1" />
