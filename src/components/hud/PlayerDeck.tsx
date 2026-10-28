@@ -439,10 +439,10 @@ export const PlayerDeck: React.FC = () => {
       </div>
 
       {/* 2. Floating Swiss Brutalist Footer Telemetry (Zero Outer Box, Matching Flanks) */}
-      <div className="w-full px-6 pb-5 flex items-end justify-between font-mono">
+      <div className="relative w-full px-6 pb-5 flex items-center justify-between font-mono">
         
         {/* Bottom-Left: Audio Carrier & Metadata (Matches Left Flank border-l) */}
-        <div className="flex items-center gap-3 border-l border-white/20 pl-2.5 pointer-events-auto">
+        <div className="flex items-center gap-3 border-l border-white/20 pl-2.5 pointer-events-auto z-10">
           {/* Album Artwork Frame */}
           <div className="relative w-11 h-11 flex-shrink-0 bg-white/5 border border-white/20 rounded-[1px] overflow-hidden shadow-[0_0_12px_rgba(0,0,0,0.8)] flex items-center justify-center group">
             {((isLiveInput && liveSmtcData?.artwork) || (isPlaying && localArtwork)) ? (
@@ -487,8 +487,8 @@ export const PlayerDeck: React.FC = () => {
           </div>
         </div>
 
-        {/* Bottom-Center: Pure Typographic Audio Controls */}
-        <div className="flex items-center justify-center h-11 gap-4 pointer-events-auto select-none">
+        {/* Bottom-Center: Pure Typographic Audio Controls (ABSOLUTE EXACT 50% TRUE SCREEN CENTER) */}
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-5 flex items-center justify-center h-11 gap-4 pointer-events-auto select-none z-10">
           {/* Prev */}
           <button
             onClick={handlePlayPrev}
@@ -528,7 +528,7 @@ export const PlayerDeck: React.FC = () => {
         </div>
 
         {/* Bottom-Right: Master Stage & Gain Slider (Matches Right Flank border-r) */}
-        <div className="flex flex-col justify-center h-11 items-end border-r border-white/20 pr-2.5 text-right pointer-events-auto">
+        <div className="flex flex-col justify-center h-11 items-end border-r border-white/20 pr-2.5 text-right pointer-events-auto z-10">
           <div className="flex items-center gap-2 text-[10px] tracking-wider my-0.5">
             <button
               onClick={handleToggleMute}

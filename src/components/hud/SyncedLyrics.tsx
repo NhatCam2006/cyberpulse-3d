@@ -68,11 +68,11 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ className = '' }) =>
     >
       {/* Main Lyric Readout */}
       {isSynced ? (
-        <div className="flex flex-col items-center justify-center gap-0.5 max-w-lg px-2">
+        <div className="flex flex-col items-center justify-center text-center gap-0.5 w-full">
           {/* Active Line (Crisp white, bold, glowing with native CJK/Hangul support) */}
-          <div className="text-xs sm:text-[13px] font-semibold text-white tracking-wider leading-relaxed transition-all duration-200 drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]">
+          <div className="w-full text-center text-xs sm:text-[13px] font-semibold text-white tracking-wider leading-relaxed transition-all duration-200 drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]">
             {activeLine ? (
-              activeLine.text
+              activeLine.text.trim()
             ) : lines.length > 0 ? (
               <span className="text-neutral-400 font-normal tracking-widest text-[11px]">
                 • • • [ INSTRUMENTAL INTRO ] • • •
@@ -84,14 +84,14 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ className = '' }) =>
 
           {/* Next Line Subtle Preview (Very faint, smaller) */}
           {nextLine && (
-            <div className="text-[9.5px] text-neutral-400 tracking-wide truncate max-w-md opacity-50 transition-opacity duration-300">
-              {activeLine ? nextLine.text : `▷ UPCOMING: ${nextLine.text}`}
+            <div className="w-full text-center text-[9.5px] text-neutral-400 tracking-wide truncate opacity-50 transition-opacity duration-300">
+              {activeLine ? nextLine.text.trim() : `▷ UPCOMING: ${nextLine.text.trim()}`}
             </div>
           )}
         </div>
       ) : (
         /* Fallback for unsynced plain lyrics */
-        <div className="text-[11px] text-neutral-400 max-w-md line-clamp-2 px-2 text-center tracking-wide">
+        <div className="w-full text-center text-[11px] text-neutral-400 line-clamp-2 px-2 tracking-wide">
           {plainLyrics}
         </div>
       )}
