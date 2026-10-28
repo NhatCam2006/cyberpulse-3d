@@ -35,10 +35,6 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ className = '' }) =>
         className={`pointer-events-none select-none flex flex-col items-center justify-center text-center ${className}`}
         style={{ fontFamily: "'JetBrains Mono', 'Rajdhani', 'Pretendard', 'Noto Sans KR', sans-serif" }}
       >
-        <div className="flex items-center gap-1.5 text-[7.5px] tracking-[0.25em] text-neutral-400 uppercase mb-0.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff] animate-ping" />
-          <span>VOICE CARRIER // ACQUIRING</span>
-        </div>
         <div className="text-[10px] text-neutral-400 tracking-wider font-mono">
           [ ◰ SYNCHRONIZING LYRIC TELEMETRY... ]
         </div>
@@ -58,10 +54,6 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ className = '' }) =>
           }
         }}
       >
-        <div className="flex items-center gap-1.5 text-[7.5px] tracking-[0.25em] text-neutral-500 uppercase mb-0.5 cursor-pointer hover:text-white transition-colors" title="Click to retry lyrics acquisition">
-          <span className="w-1 h-1 rounded-full bg-neutral-600" />
-          <span>VOICE CARRIER // SPECTROGRAM ONLY</span>
-        </div>
         <div className="text-[9.5px] text-neutral-500 tracking-wider font-mono uppercase cursor-pointer hover:text-neutral-300 transition-colors" title="Click to retry lyrics acquisition">
           [ NO LYRICS RECORDED FOR CURRENT TRACK ⟳ ]
         </div>
@@ -74,12 +66,6 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ className = '' }) =>
       className={`pointer-events-none select-none flex flex-col items-center justify-center text-center transition-all duration-300 ${className}`}
       style={{ fontFamily: "'JetBrains Mono', 'Rajdhani', 'Pretendard', 'Noto Sans KR', sans-serif" }}
     >
-      {/* Micro Telemetry Header */}
-      <div className="flex items-center gap-1.5 text-[7.5px] tracking-[0.25em] text-neutral-500 uppercase mb-0.5">
-        <span className="w-1 h-1 rounded-full bg-white shadow-[0_0_4px_#ffffff] animate-pulse" />
-        <span>VOICE CARRIER // {isSynced ? 'SYNCED' : 'STATIC'}</span>
-      </div>
-
       {/* Main Lyric Readout */}
       {isSynced ? (
         <div className="flex flex-col items-center justify-center gap-0.5 max-w-lg px-2">
