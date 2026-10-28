@@ -1,11 +1,14 @@
 import React from 'react';
 import { useLyricsStore } from '../../store/useLyricsStore';
+import { usePlayerStore } from '../../store/usePlayerStore';
 
 interface SyncedLyricsProps {
   className?: string;
 }
 
 export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ className = '' }) => {
+  const isLiveInput = usePlayerStore(state => state.isLiveInput);
+  const isPlaying = usePlayerStore(state => state.isPlaying);
   const trackName = useLyricsStore(state => state.trackName);
   const artistName = useLyricsStore(state => state.artistName);
   const isSynced = useLyricsStore(state => state.isSynced);
@@ -14,6 +17,11 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ className = '' }) =>
   const nextLine = useLyricsStore(state => state.nextLine);
   const lines = useLyricsStore(state => state.lines);
   const plainLyrics = useLyricsStore(state => state.plainLyrics);
+
+  // Strictly render lyrics only when screen sharing is active (isLiveInput) or local playback is running
+  if (!isLiveInput && !isPlaying) {
+    return null;
+  }
 
   // If no track has ever been loaded or played, render nothing
   if (!trackName && !isLoading && !isSynced && !plainLyrics) {

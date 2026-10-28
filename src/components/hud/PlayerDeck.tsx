@@ -52,8 +52,15 @@ export const PlayerDeck: React.FC = () => {
   const lastFetchedLiveTrackRef = useRef<string | null>(null);
   const lastFetchAttemptTimeRef = useRef<number>(0);
 
-  // Poll SMTC metadata continuously so desktop/Spotify tracks and lyrics are always synchronized
+  // Poll SMTC metadata strictly when screen sharing / live ingestion is active
   useEffect(() => {
+    if (!isLiveInput) {
+      setLiveSmtcData(null);
+      lastFetchedLiveTrackRef.current = null;
+      useLyricsStore.getState().reset();
+      return;
+    }
+
     const timer = setInterval(() => {
       setLiveElapsed(prev => prev + 1);
     }, 1000);
@@ -101,7 +108,7 @@ export const PlayerDeck: React.FC = () => {
       clearInterval(timer);
       clearInterval(smtcInterval);
     };
-  }, []);
+  }, [isLiveInput]);
 
   const currentTrack = currentTrackIndex >= 0 && currentTrackIndex < tracks.length
     ? tracks[currentTrackIndex]
@@ -109,7 +116,7 @@ export const PlayerDeck: React.FC = () => {
 
   // Fetch album art for local / offline playback
   useEffect(() => {
-    if (isLiveInput || !currentTrack) {
+    if (isLiveInput || !currentTrack || !isPlaying) {
       setLocalArtwork(null);
       return;
     }
@@ -135,13 +142,13 @@ export const PlayerDeck: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [isLiveInput, currentTrack?.title, currentTrack?.artist]);
+  }, [isLiveInput, isPlaying, currentTrack?.title, currentTrack?.artist]);
 
   // Fetch lyrics for local track
   useEffect(() => {
-    if (isLiveInput || !currentTrack) return;
+    if (isLiveInput || !currentTrack || !isPlaying) return;
     useLyricsStore.getState().fetchLyrics(currentTrack.title, currentTrack.artist, currentTrack.duration);
-  }, [isLiveInput, currentTrack?.title, currentTrack?.artist, currentTrack?.duration]);
+  }, [isLiveInput, isPlaying, currentTrack?.title, currentTrack?.artist, currentTrack?.duration]);
 
   // High-precision sub-second time sync for lyrics
   const lastSyncTimeRef = useRef<{ pos: number; timestamp: number }>({ pos: 0, timestamp: 0 });
@@ -392,7 +399,9 @@ export const PlayerDeck: React.FC = () => {
                     0,
                     isLiveInput && liveSmtcData?.duration
                       ? ((liveSmtcData.position || 0) / liveSmtcData.duration) * 100
-                      : playbackProgress * 100
+                      : isPlaying
+                      ? playbackProgress * 100
+                      : 0
                   )
                 )}%`,
               }}
@@ -400,7 +409,7 @@ export const PlayerDeck: React.FC = () => {
           )}
 
           {/* Precision Micro Crosshair Marker on Hover */}
-          {!isLiveInput && (
+          {!isLiveInput && isPlaying && (
             <div
               className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-2 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
               style={{ left: `${Math.min(100, Math.max(0, playbackProgress * 100))}%` }}
@@ -418,9 +427,9 @@ export const PlayerDeck: React.FC = () => {
         <div className="flex items-center gap-3 border-l border-white/20 pl-2.5 pointer-events-auto">
           {/* Album Artwork Frame */}
           <div className="relative w-11 h-11 flex-shrink-0 bg-white/5 border border-white/20 rounded-[1px] overflow-hidden shadow-[0_0_12px_rgba(0,0,0,0.8)] flex items-center justify-center group">
-            {(liveSmtcData?.artwork || localArtwork) ? (
+            {((isLiveInput && liveSmtcData?.artwork) || (isPlaying && localArtwork)) ? (
               <img
-                src={(liveSmtcData?.artwork || localArtwork)!}
+                src={(isLiveInput ? liveSmtcData?.artwork : localArtwork)!}
                 alt="Album Cover"
                 className="w-full h-full object-cover select-none filter contrast-105"
               />
@@ -439,9 +448,13 @@ export const PlayerDeck: React.FC = () => {
           <div className="flex flex-col gap-0.5 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-[8px] text-neutral-500 uppercase tracking-widest">
-                {liveSmtcData?.title || isLiveInput ? 'LIVE INGESTION // CHANNEL A' : 'AUDIO CARRIER // CHANNEL A'}
+                {isLiveInput
+                  ? 'LIVE INGESTION // CHANNEL A'
+                  : isPlaying
+                  ? 'LOCAL PLAYBACK // CHANNEL A'
+                  : 'AUDIO CARRIER // STANDBY'}
               </span>
-              {(liveSmtcData?.title || isLiveInput) && (
+              {(isLiveInput || isPlaying) && (
                 <span className="inline-flex items-center gap-1 text-[8px] text-white font-mono tracking-widest uppercase">
                   <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff] animate-pulse" />
                   ACTIVE
@@ -449,16 +462,20 @@ export const PlayerDeck: React.FC = () => {
               )}
             </div>
             <div className="text-xs font-bold text-white tracking-wider truncate max-w-[200px] sm:max-w-[260px] md:max-w-xs">
-              {liveSmtcData?.title
+              {isLiveInput && liveSmtcData?.title
                 ? liveSmtcData.title.toUpperCase()
-                : (currentTrack ? currentTrack.title.toUpperCase() : 'NO TRACK LOADED')}
+                : isPlaying && currentTrack
+                ? currentTrack.title.toUpperCase()
+                : 'STANDBY // NO STREAM'}
             </div>
             <div className="text-[9.5px] text-neutral-400 tracking-wider truncate max-w-[200px] sm:max-w-[260px] md:max-w-xs">
-              {liveSmtcData?.title
+              {isLiveInput && liveSmtcData?.title
                 ? `${(liveSmtcData.artist || 'DESKTOP AUDIO').toUpperCase()}${
                     liveSmtcData.album ? ` // ${liveSmtcData.album.toUpperCase()}` : ''
                   }`
-                : (currentTrack ? currentTrack.artist.toUpperCase() : 'DRAG & DROP AUDIO FILE')}
+                : isPlaying && currentTrack
+                ? currentTrack.artist.toUpperCase()
+                : 'CLICK [SPOTIFY IN] TO SHARE AUDIO'}
             </div>
           </div>
         </div>
@@ -554,12 +571,14 @@ export const PlayerDeck: React.FC = () => {
                   </>
                 )}
               </div>
-            ) : (
+            ) : isPlaying ? (
               <>
                 <span className="text-white font-semibold">{formatTime(currentTime)}</span>
                 <span className="text-neutral-600 mx-1.5">//</span>
                 <span>{formatTime(duration)}</span>
               </>
+            ) : (
+              <span className="text-neutral-500">00:00 // 00:00</span>
             )}
           </div>
         </div>
