@@ -426,11 +426,27 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       });
 
       if (success) {
+        let initialTitle = engine.liveTrackMeta ? engine.liveTrackMeta.title : 'SPOTIFY LIVE STREAM';
+        let initialArtist = engine.liveTrackMeta ? engine.liveTrackMeta.artist : 'DESKTOP AUDIO';
+
+        try {
+          const res = await fetch('/api/now-playing');
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.title && data.title.trim().length > 0) {
+              initialTitle = data.title;
+              initialArtist = data.artist || 'SPOTIFY';
+            }
+          }
+        } catch {
+          // ignore offline fallback
+        }
+
         set({
           isLiveInput: true,
           liveInputType: 'system',
-          liveTrackTitle: engine.liveTrackMeta ? engine.liveTrackMeta.title : 'SPOTIFY LIVE STREAM',
-          liveTrackArtist: engine.liveTrackMeta ? engine.liveTrackMeta.artist : 'DESKTOP AUDIO',
+          liveTrackTitle: initialTitle,
+          liveTrackArtist: initialArtist,
         });
       } else {
         set({ isLiveInput: false, liveInputType: null });

@@ -37,11 +37,19 @@ export const PlayerDeck: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [liveElapsed, setLiveElapsed] = useState(0);
+  const [liveSmtcData, setLiveSmtcData] = useState<{
+    position?: number;
+    duration?: number;
+    title?: string;
+    artist?: string;
+    album?: string;
+  } | null>(null);
   const prevVolumeRef = useRef(volume);
 
   useEffect(() => {
     if (!isLiveInput) {
       setLiveElapsed(0);
+      setLiveSmtcData(null);
       return;
     }
 
@@ -49,7 +57,28 @@ export const PlayerDeck: React.FC = () => {
       setLiveElapsed(prev => prev + 1);
     }, 1000);
 
-    return () => clearInterval(timer);
+    const pollSmtc = async () => {
+      try {
+        const res = await fetch('/api/now-playing');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.title && data.title.trim().length > 0) {
+            setLiveSmtcData(data);
+            usePlayerStore.getState().setLiveTrackInfo(data.title, data.artist || 'SPOTIFY');
+          }
+        }
+      } catch {
+        // ignore in offline/static environments
+      }
+    };
+
+    pollSmtc();
+    const smtcInterval = setInterval(pollSmtc, 1000);
+
+    return () => {
+      clearInterval(timer);
+      clearInterval(smtcInterval);
+    };
   }, [isLiveInput]);
 
   const currentTrack = currentTrackIndex >= 0 && currentTrackIndex < tracks.length
@@ -194,7 +223,7 @@ export const PlayerDeck: React.FC = () => {
           <div className="w-full h-[1px] bg-white/10 group-hover:bg-white/25 transition-colors" />
 
           {/* Active Elapsed Horizon or Live Sweep */}
-          {isLiveInput ? (
+          {isLiveInput && (!liveSmtcData?.duration || liveSmtcData.duration <= 0) ? (
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
               <div
                 className="h-[1px] w-36 bg-gradient-to-r from-transparent via-white to-transparent will-change-transform opacity-75"
@@ -206,7 +235,17 @@ export const PlayerDeck: React.FC = () => {
           ) : (
             <div
               className="absolute left-0 h-[1px] bg-white shadow-[0_0_6px_#ffffff] transition-all"
-              style={{ width: `${Math.min(100, Math.max(0, playbackProgress * 100))}%` }}
+              style={{
+                width: `${Math.min(
+                  100,
+                  Math.max(
+                    0,
+                    isLiveInput && liveSmtcData?.duration
+                      ? ((liveSmtcData.position || 0) / liveSmtcData.duration) * 100
+                      : playbackProgress * 100
+                  )
+                )}%`,
+              }}
             />
           )}
 
@@ -240,12 +279,14 @@ export const PlayerDeck: React.FC = () => {
           </div>
           <div className="text-xs font-bold text-white tracking-wider truncate max-w-[240px] md:max-w-xs">
             {isLiveInput
-              ? (liveTrackTitle || 'SPOTIFY LIVE STREAM').toUpperCase()
+              ? (liveSmtcData?.title || liveTrackTitle || 'SPOTIFY LIVE STREAM').toUpperCase()
               : (currentTrack ? currentTrack.title.toUpperCase() : 'NO TRACK LOADED')}
           </div>
           <div className="text-[9.5px] text-neutral-400 tracking-wider truncate max-w-[240px] md:max-w-xs">
             {isLiveInput
-              ? `${(liveTrackArtist || 'DESKTOP AUDIO').toUpperCase()} // ${formatTime(liveElapsed)}`
+              ? `${(liveSmtcData?.artist || liveTrackArtist || 'DESKTOP AUDIO').toUpperCase()}${
+                  liveSmtcData?.album ? ` // ${liveSmtcData.album.toUpperCase()}` : ''
+                }`
               : (currentTrack ? currentTrack.artist.toUpperCase() : 'DRAG & DROP AUDIO FILE')}
           </div>
         </div>
@@ -319,14 +360,24 @@ export const PlayerDeck: React.FC = () => {
             </button>
           </div>
 
-          {/* Elapsed / Duration Timestamp or LIVE STREAMING badge */}
+          {/* Elapsed / Duration Timestamp */}
           <div className="text-[9.5px] text-neutral-400 font-mono tracking-[0.2em]">
             {isLiveInput ? (
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff] animate-pulse" />
-                <span className="text-white font-semibold">LIVE [{formatTime(liveElapsed)}]</span>
-                <span className="text-neutral-600">//</span>
-                <span className="text-neutral-400">REALTIME FEED</span>
+                {liveSmtcData?.duration && liveSmtcData.duration > 0 ? (
+                  <>
+                    <span className="text-white font-semibold">{formatTime(liveSmtcData.position || 0)}</span>
+                    <span className="text-neutral-600 mx-1.5">//</span>
+                    <span>{formatTime(liveSmtcData.duration)}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-white font-semibold">LIVE [{formatTime(liveElapsed)}]</span>
+                    <span className="text-neutral-600 mx-1.5">//</span>
+                    <span className="text-neutral-400">REALTIME FEED</span>
+                  </>
+                )}
               </div>
             ) : (
               <>
