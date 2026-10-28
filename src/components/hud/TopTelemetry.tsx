@@ -19,17 +19,17 @@ interface TopTelemetryProps {
 }
 
 const CELESTIAL_BODIES = [
-  { name: 'Sol', symbol: '☉', type: 'STAR' },
-  { name: 'Mercury', symbol: '☿', type: 'TERRESTRIAL' },
-  { name: 'Venus', symbol: '♀', type: 'TERRESTRIAL' },
-  { name: 'Earth', symbol: '🜨', type: 'TERRESTRIAL' },
-  { name: 'Mars', symbol: '♂', type: 'TERRESTRIAL' },
-  { name: 'Jupiter', symbol: '♃', type: 'GAS GIANT' },
-  { name: 'Saturn', symbol: '♄', type: 'GAS GIANT' },
-  { name: 'Uranus', symbol: '♅', type: 'ICE GIANT' },
-  { name: 'Neptune', symbol: '♆', type: 'ICE GIANT' },
-  { name: 'Ceres', symbol: '⚳', type: 'ASTEROID' },
-  { name: 'Pluto', symbol: '♇', type: 'DWARF' },
+  { id: '00', name: 'Sol', type: 'STAR' },
+  { id: '01', name: 'Mercury', type: 'TERRESTRIAL' },
+  { id: '02', name: 'Venus', type: 'TERRESTRIAL' },
+  { id: '03', name: 'Earth', type: 'TERRESTRIAL' },
+  { id: '04', name: 'Mars', type: 'TERRESTRIAL' },
+  { id: '05', name: 'Ceres', type: 'ASTEROID' },
+  { id: '06', name: 'Jupiter', type: 'GAS GIANT' },
+  { id: '07', name: 'Saturn', type: 'GAS GIANT' },
+  { id: '08', name: 'Uranus', type: 'ICE GIANT' },
+  { id: '09', name: 'Neptune', type: 'ICE GIANT' },
+  { id: '10', name: 'Pluto', type: 'DWARF' },
 ];
 
 export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDrawerOpen }) => {
@@ -232,21 +232,21 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
                   className="fixed inset-0 z-40"
                   onClick={() => setShowPlanetMenu(false)}
                 />
-                <div className="absolute right-0 mt-2 w-64 rounded bg-[#08080c]/95 border border-white/20 shadow-2xl p-2.5 z-50 flex flex-col gap-1 font-mono text-xs backdrop-blur-md">
-                  <div className="flex items-center justify-between px-1.5 py-1 text-[10px] text-neutral-400 uppercase tracking-wider font-semibold border-b border-white/10">
-                    <span>MISSION CONTROL</span>
+                <div className="absolute right-0 mt-2 w-[340px] rounded-sm bg-[#08080c]/98 border border-white/20 shadow-2xl p-3 z-50 flex flex-col font-mono text-xs backdrop-blur-md">
+                  <div className="flex items-center justify-between px-1 pb-2 text-[9px] uppercase tracking-widest font-mono border-b border-white/10">
+                    <span className="text-white font-bold tracking-[0.16em]">CELESTIAL BODIES</span>
                     <button
                       onClick={() => {
                         setSelectedPlanet(null);
                         setShowPlanetMenu(false);
                       }}
-                      className="text-neutral-400 hover:text-white text-[9px] underline cursor-pointer"
+                      className="text-neutral-400 hover:text-white transition-colors cursor-pointer"
                     >
-                      [ OVERVIEW ]
+                      [ RESET VIEW ]
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-1 mt-1 max-h-64 overflow-y-auto pr-1">
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-2">
                     {CELESTIAL_BODIES.map((body) => (
                       <button
                         key={body.name}
@@ -254,17 +254,19 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
                           setSelectedPlanet(body.name);
                           setShowPlanetMenu(false);
                         }}
-                        className={`flex items-center justify-between px-2 py-1.5 rounded text-left transition-colors cursor-pointer ${
+                        className={`flex items-center justify-between px-2 py-1.5 rounded-none text-left transition-all cursor-pointer font-mono ${
                           selectedPlanet === body.name
-                            ? 'bg-white/20 text-white font-bold border border-white/30'
-                            : 'hover:bg-white/5 text-neutral-300 hover:text-white'
+                            ? 'bg-white/15 text-white font-bold border-l-2 border-white pl-1.5'
+                            : 'hover:bg-white/5 text-neutral-300 hover:text-white border-l-2 border-transparent'
                         }`}
                       >
-                        <span className="flex items-center gap-1.5 text-[11px]">
-                          <span className="text-neutral-400 text-xs">{body.symbol}</span>
-                          <span>{body.name}</span>
+                        <div className="flex items-center gap-1.5 whitespace-nowrap">
+                          <span className="text-[8px] text-neutral-500 font-normal w-3.5">{body.id}</span>
+                          <span className="text-[10px] uppercase tracking-wider">{body.name}</span>
+                        </div>
+                        <span className="text-[7.5px] text-neutral-500 uppercase tracking-widest whitespace-nowrap ml-2">
+                          {body.type}
                         </span>
-                        <span className="text-[8px] text-neutral-500">{body.type}</span>
                       </button>
                     ))}
                   </div>
@@ -302,13 +304,10 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
                 setShowPlanetMenu(false);
               }}
               title="System Menu & Audio Feed"
-              className={`flex items-center gap-1.5 text-[10px] tracking-widest font-mono uppercase transition-colors cursor-pointer py-0.5 ${
+              className={`flex items-center gap-1 text-[10px] tracking-widest font-mono uppercase transition-colors cursor-pointer py-0.5 ${
                 showCompactMenu || isLiveInput ? 'text-white font-bold' : 'text-neutral-400 hover:text-white'
               }`}
             >
-              {isLiveInput && (
-                <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff] animate-pulse" />
-              )}
               <span>[ {isLiveInput ? 'LIVE ON ▾' : 'MENU ▾'} ]</span>
             </button>
 
@@ -319,12 +318,11 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
                   className="fixed inset-0 z-40"
                   onClick={() => setShowCompactMenu(false)}
                 />
-                <div className="absolute right-0 mt-2 w-60 rounded bg-[#08080c]/95 border border-white/20 shadow-2xl p-2.5 z-50 flex flex-col gap-2 font-mono text-xs backdrop-blur-md">
-                  <div className="flex items-center justify-between px-1 text-[8.5px] text-neutral-400 uppercase tracking-widest border-b border-white/10 pb-1">
+                <div className="absolute right-0 mt-2 w-64 rounded-sm bg-[#08080c]/98 border border-white/20 shadow-2xl p-3 z-50 flex flex-col gap-2.5 font-mono text-xs backdrop-blur-md">
+                  <div className="flex items-center justify-between px-1 text-[8.5px] text-neutral-400 uppercase tracking-widest border-b border-white/10 pb-1.5">
                     <span>AUDIO FEED</span>
                     {isLiveInput && (
-                      <span className="text-white font-semibold flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff] animate-pulse" />
+                      <span className="text-white font-bold tracking-wider">
                         ACTIVE
                       </span>
                     )}
@@ -335,29 +333,22 @@ export const TopTelemetry: React.FC<TopTelemetryProps> = ({ onToggleDrawer, isDr
                       toggleSystemAudio();
                       setShowCompactMenu(false);
                     }}
-                    className={`w-full py-1.5 px-2.5 rounded text-[10px] uppercase tracking-wider font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                    className={`w-full py-2 px-3 text-[10px] uppercase tracking-wider font-semibold transition-all cursor-pointer flex items-center justify-center font-mono ${
                       isLiveInput
-                        ? 'bg-white/20 text-white hover:bg-white/30 border border-white/30 shadow-[0_0_8px_rgba(255,255,255,0.2)]'
+                        ? 'bg-white/20 text-white hover:bg-white/30 border border-white/30 shadow-[0_0_8px_rgba(255,255,255,0.15)]'
                         : 'bg-white/10 text-white hover:bg-white/20 border border-white/15'
                     }`}
                   >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        isLiveInput
-                          ? 'bg-white shadow-[0_0_6px_#ffffff] animate-pulse'
-                          : 'bg-neutral-500'
-                      }`}
-                    />
-                    <span>{isLiveInput ? 'DISCONNECT SPOTIFY' : 'SPOTIFY IN (SHARE AUDIO)'}</span>
+                    <span>{isLiveInput ? 'DISCONNECT SPOTIFY' : 'CONNECT SPOTIFY'}</span>
                   </button>
 
-                  <div className="border-t border-white/10 pt-1">
+                  <div className="border-t border-white/10 pt-1.5">
                     <button
                       onClick={() => {
                         onToggleDrawer();
                         setShowCompactMenu(false);
                       }}
-                      className="w-full text-left px-2 py-1.5 rounded hover:bg-white/10 text-neutral-300 hover:text-white transition-colors cursor-pointer text-[10px] flex items-center justify-between"
+                      className="w-full text-left px-2 py-1.5 rounded-none hover:bg-white/10 text-neutral-300 hover:text-white transition-colors cursor-pointer text-[10px] flex items-center justify-between"
                     >
                       <span>TRACK ARCHIVE</span>
                       <span className="text-neutral-500 text-[8px]">{trackCount} TRACKS</span>
