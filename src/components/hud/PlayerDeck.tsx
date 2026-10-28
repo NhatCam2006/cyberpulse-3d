@@ -51,12 +51,30 @@ export const PlayerDeck: React.FC = () => {
   const prevVolumeRef = useRef(volume);
   const lastFetchedLiveTrackRef = useRef<string | null>(null);
   const lastFetchAttemptTimeRef = useRef<number>(0);
+  const hasSyncedSpotifyVolumeRef = useRef(false);
+
+  const sendSpotifyVolume = (vol: number) => {
+    fetch('/api/media-control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'volume', value: vol }),
+    }).catch(() => {});
+  };
+
+  const sendSpotifyMute = (muted: boolean) => {
+    fetch('/api/media-control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: muted ? 'mute' : 'unmute' }),
+    }).catch(() => {});
+  };
 
   // Poll SMTC metadata strictly when screen sharing / live ingestion is active
   useEffect(() => {
     if (!isLiveInput) {
       setLiveSmtcData(null);
       lastFetchedLiveTrackRef.current = null;
+      hasSyncedSpotifyVolumeRef.current = false;
       useLyricsStore.getState().reset();
       return;
     }
@@ -70,6 +88,16 @@ export const PlayerDeck: React.FC = () => {
         const res = await fetch('/api/now-playing');
         if (res.ok) {
           const data = await res.json();
+
+          // Sync initial volume from Spotify once on connect
+          if (data && data.spotifyVolume && !hasSyncedSpotifyVolumeRef.current) {
+            hasSyncedSpotifyVolumeRef.current = true;
+            if (typeof data.spotifyVolume.volume === 'number') {
+              setVolume(data.spotifyVolume.volume);
+              setIsMuted(Boolean(data.spotifyVolume.muted));
+            }
+          }
+
           if (data && data.title && data.title.trim().length > 0) {
             setLiveSmtcData(data);
             usePlayerStore.getState().setLiveTrackInfo(data.title, data.artist || 'SPOTIFY');
@@ -342,13 +370,48 @@ export const PlayerDeck: React.FC = () => {
 
   const handleToggleMute = () => {
     if (isMuted) {
-      setVolume(prevVolumeRef.current || 0.8);
+      const restored = prevVolumeRef.current || 0.8;
+      setVolume(restored);
       setIsMuted(false);
+      if (isLiveInput) {
+        sendSpotifyVolume(restored);
+        sendSpotifyMute(false);
+      }
     } else {
       prevVolumeRef.current = volume;
       setVolume(0);
       setIsMuted(true);
+      if (isLiveInput) {
+        sendSpotifyMute(true);
+      }
     }
+  };
+
+  const handleVolumeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const bar = e.currentTarget;
+    const updateFromClientX = (clientX: number) => {
+      const rect = bar.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      setVolume(pct);
+      if (isMuted) setIsMuted(false);
+      if (isLiveInput) {
+        sendSpotifyVolume(pct);
+      }
+    };
+
+    updateFromClientX(e.clientX);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      updateFromClientX(moveEvent.clientX);
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
   };
 
   return (
@@ -542,13 +605,8 @@ export const PlayerDeck: React.FC = () => {
               )}
             </button>
             <div
-              className="w-16 h-1 bg-white/15 relative overflow-hidden cursor-pointer"
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                setVolume(pct);
-                if (isMuted) setIsMuted(false);
-              }}
+              className="w-16 h-1 bg-white/15 relative overflow-hidden cursor-pointer touch-none"
+              onMouseDown={handleVolumeMouseDown}
               title={`Master Gain: ${Math.round(volume * 100)}%`}
             >
               <div

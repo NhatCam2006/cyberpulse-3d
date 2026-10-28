@@ -1,5 +1,5 @@
 import { Plugin } from 'vite';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, execFile, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 
@@ -13,6 +13,7 @@ export interface NowPlayingData {
   source?: string;
   artwork?: string;
   lyrics?: LyricsResponse | null;
+  spotifyVolume?: { volume: number; muted: boolean } | null;
 }
 
 export interface LyricLine {
@@ -357,6 +358,56 @@ export function nowPlayingPlugin(): Plugin {
   let child: ChildProcess | null = null;
   let lastPrefetchedTrackKey: string | null = null;
 
+  const setSpotifyVolumeExe = path.resolve(__dirname, 'SetSpotifyVolume.exe');
+  let isSettingVolume = false;
+  let pendingVolume: number | string | null = null;
+  let currentSpotifyVolume: { volume: number; muted: boolean } | null = null;
+  let lastVolumeQueryTime = 0;
+
+  function applySpotifyVolume(val: number | 'mute' | 'unmute') {
+    if (!fs.existsSync(setSpotifyVolumeExe)) return;
+    if (isSettingVolume) {
+      pendingVolume = val;
+      return;
+    }
+    isSettingVolume = true;
+    const arg = typeof val === 'number' ? val.toFixed(3) : val;
+    execFile(setSpotifyVolumeExe, [arg], (err, stdout) => {
+      isSettingVolume = false;
+      if (!err && stdout) {
+        try {
+          const parsed = JSON.parse(stdout.trim());
+          if (parsed.ok) {
+            currentSpotifyVolume = { volume: parsed.volume, muted: parsed.muted };
+            lastVolumeQueryTime = Date.now();
+          }
+        } catch {}
+      }
+      if (pendingVolume !== null) {
+        const next = pendingVolume;
+        pendingVolume = null;
+        applySpotifyVolume(next as any);
+      }
+    });
+  }
+
+  function refreshSpotifyVolume() {
+    const now = Date.now();
+    if (now - lastVolumeQueryTime < 1200) return;
+    lastVolumeQueryTime = now;
+    if (!fs.existsSync(setSpotifyVolumeExe)) return;
+    execFile(setSpotifyVolumeExe, ['get'], (err, stdout) => {
+      if (!err && stdout) {
+        try {
+          const parsed = JSON.parse(stdout.trim());
+          if (parsed.ok) {
+            currentSpotifyVolume = { volume: parsed.volume, muted: parsed.muted };
+          }
+        } catch {}
+      }
+    });
+  }
+
   return {
     name: 'vite-now-playing-plugin',
     configureServer(server) {
@@ -446,6 +497,8 @@ export function nowPlayingPlugin(): Plugin {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Cache-Control', 'no-store');
 
+        refreshSpotifyVolume();
+
         if (cachedMediaInfo && cachedMediaInfo.title) {
           const cleanTitle = cleanTrackTitle(cachedMediaInfo.title) || cachedMediaInfo.title.trim();
           const cleanArtist = cleanArtistName(cachedMediaInfo.artist || '') || (cachedMediaInfo.artist || '').trim();
@@ -458,7 +511,12 @@ export function nowPlayingPlugin(): Plugin {
           }
         }
 
-        res.end(JSON.stringify(cachedMediaInfo || { status: 'idle' }));
+        const payload: NowPlayingData = {
+          ...(cachedMediaInfo || { status: 'idle' }),
+          spotifyVolume: currentSpotifyVolume,
+        };
+
+        res.end(JSON.stringify(payload));
       });
 
       // Serve POST /api/media-control
@@ -471,6 +529,33 @@ export function nowPlayingPlugin(): Plugin {
           req.on('end', () => {
             try {
               const { action, value } = JSON.parse(body || '{}');
+
+              // Spotify WASAPI Direct Volume & Mute control
+              if (action === 'volume' && typeof value === 'number') {
+                const clamped = Math.max(0, Math.min(1, value));
+                applySpotifyVolume(clamped);
+                res.setHeader('Content-Type', 'application/json');
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.end(JSON.stringify({ ok: true, action: 'volume', value: clamped }));
+                return;
+              }
+
+              if (action === 'mute') {
+                applySpotifyVolume('mute');
+                res.setHeader('Content-Type', 'application/json');
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.end(JSON.stringify({ ok: true, action: 'mute' }));
+                return;
+              }
+
+              if (action === 'unmute') {
+                applySpotifyVolume('unmute');
+                res.setHeader('Content-Type', 'application/json');
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.end(JSON.stringify({ ok: true, action: 'unmute' }));
+                return;
+              }
+
               const cmdPath = path.resolve(__dirname, '.cmd');
               let cmdStr = '';
               if (action === 'play_pause') {
