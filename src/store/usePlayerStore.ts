@@ -394,25 +394,27 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   toggleSystemAudio: async () => {
     const engine = AudioEngine.getInstance();
-    const { isLiveInput, isPlaying, isDemoSynth } = get();
+    const { isLiveInput, isDemoSynth } = get();
 
     if (isLiveInput) {
       engine.stopLiveInput();
+      const audio = getGlobalAudio();
+      audio.muted = false;
       set({ isLiveInput: false, liveInputType: null });
       return false;
     } else {
-      // Pause local audio or demo synth
-      if (isPlaying) {
-        if (isDemoSynth) {
-          engine.stopDemoSynth();
-          set({ isDemoSynth: false });
-        } else {
-          getGlobalAudio().pause();
-        }
-        set({ isPlaying: false });
+      // Always pause and mute local audio so it NEVER conflicts with Spotify
+      const audio = getGlobalAudio();
+      audio.pause();
+      audio.muted = true;
+      if (isDemoSynth) {
+        engine.stopDemoSynth();
+        set({ isDemoSynth: false });
       }
+      set({ isPlaying: false });
 
       const success = await engine.startSystemAudioCapture(() => {
+        getGlobalAudio().muted = false;
         set({ isLiveInput: false, liveInputType: null });
       });
 
@@ -423,24 +425,26 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   toggleMicAudio: async () => {
     const engine = AudioEngine.getInstance();
-    const { isLiveInput, isPlaying, isDemoSynth } = get();
+    const { isLiveInput, isDemoSynth } = get();
 
     if (isLiveInput) {
       engine.stopLiveInput();
+      const audio = getGlobalAudio();
+      audio.muted = false;
       set({ isLiveInput: false, liveInputType: null });
       return false;
     } else {
-      if (isPlaying) {
-        if (isDemoSynth) {
-          engine.stopDemoSynth();
-          set({ isDemoSynth: false });
-        } else {
-          getGlobalAudio().pause();
-        }
-        set({ isPlaying: false });
+      const audio = getGlobalAudio();
+      audio.pause();
+      audio.muted = true;
+      if (isDemoSynth) {
+        engine.stopDemoSynth();
+        set({ isDemoSynth: false });
       }
+      set({ isPlaying: false });
 
       const success = await engine.startMicAudioCapture(() => {
+        getGlobalAudio().muted = false;
         set({ isLiveInput: false, liveInputType: null });
       });
 

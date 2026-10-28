@@ -147,7 +147,7 @@ export class AudioEngine {
       if (!this.mediaSource) {
         this.mediaSource = this.ctx.createMediaElementSource(element);
         this.mediaSource.connect(this.analyser);
-        this.analyser.connect(this.ctx.destination);
+        this.mediaSource.connect(this.ctx.destination);
       }
     } catch (e) {
       console.warn('MediaElementSource already created or error connecting:', e);
@@ -499,6 +499,11 @@ export class AudioEngine {
         this.stopDemoSynth();
       }
 
+      if (this.audioElement) {
+        this.audioElement.pause();
+        this.audioElement.muted = true;
+      }
+
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: {
@@ -555,6 +560,11 @@ export class AudioEngine {
         this.stopDemoSynth();
       }
 
+      if (this.audioElement) {
+        this.audioElement.pause();
+        this.audioElement.muted = true;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: false,
@@ -598,6 +608,9 @@ export class AudioEngine {
     if (this.liveStream) {
       this.liveStream.getTracks().forEach((t) => t.stop());
       this.liveStream = null;
+    }
+    if (this.audioElement) {
+      this.audioElement.muted = false;
     }
     this.isLiveInputActive = false;
   }
