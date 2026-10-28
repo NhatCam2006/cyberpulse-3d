@@ -44,6 +44,8 @@ export class AudioEngine {
   private bassEnergyHistory: number = 0.2;
   private prevBassCombined: number = 0;
   private peakThreshold: number = 0.25;
+  private rhythmEnergyHistory: number = 0.15;
+  private prevRhythmCombined: number = 0;
 
   // Climax / Drop Detection (Cao Trào)
   public isClimax: boolean = false;
@@ -163,6 +165,8 @@ export class AudioEngine {
     this.bassEnergyHistory = 0.20;
     this.peakThreshold = 0.20;
     this.prevBassCombined = 0;
+    this.rhythmEnergyHistory = 0.15;
+    this.prevRhythmCombined = 0;
     this.isClimax = false;
     this.isBeat = false;
     this.beatIntensity = 0;
@@ -222,31 +226,59 @@ export class AudioEngine {
       ? this.bass + (punchyBass - this.bass) * 0.65
       : this.bass + (punchyBass - this.bass) * 0.09;
 
-    // 2. High-Precision Adaptive Transient Flux Beat Detection
-    // Compares current transient against running baseline before updating it
-    const transient = rawBassCombined - this.bassEnergyHistory;
-    const minMargin = Math.max(0.016, this.bassEnergyHistory * 0.045);
-    const isRising = (rawBassCombined - this.prevBassCombined) > 0.014;
+    // 2. Dual-Tier Adaptive Transient Flux Beat Detection (Heavy Kicks + Light Beats / Snares)
+    // Computes broad rhythmic percussion energy (Bins 4 to 20: ~250Hz - 1.8kHz: snare body, toms, claps, light kicks)
+    let rhythmSum = 0;
+    for (let i = 4; i <= 20; i++) {
+      rhythmSum += this.dataArray[i];
+    }
+    const rawRhythm = rhythmSum / ((20 - 4 + 1) * 255);
+    const rawRhythmCombined = rawBassCombined * 0.60 + rawRhythm * 0.40;
 
-    const isKickDetected = isRising &&
-                           (transient > minMargin) &&
-                           (rawBassCombined > this.peakThreshold) &&
-                           (now - this.lastBeatTime > 230);
+    const timeSinceLastBeat = now - this.lastBeatTime;
+    const minBeatInterval = 140; // 140ms refractory allows up to 210 BPM 1/8th note rhythms
 
-    if (isKickDetected) {
+    // Tier 1: Major Bass Kick / 808
+    const bassTransient = rawBassCombined - this.bassEnergyHistory;
+    const isBassRising = (rawBassCombined - this.prevBassCombined) > 0.012;
+    const isMajorKick = isBassRising &&
+                        (bassTransient > Math.max(0.014, this.bassEnergyHistory * 0.035)) &&
+                        (rawBassCombined > this.peakThreshold) &&
+                        (timeSinceLastBeat > minBeatInterval);
+
+    // Tier 2: Light Beat / Snare / Groove Tap
+    const rhythmTransient = rawRhythmCombined - this.rhythmEnergyHistory;
+    const isRhythmRising = (rawRhythmCombined - this.prevRhythmCombined) > 0.007;
+    const isLightBeat = !isMajorKick &&
+                        isRhythmRising &&
+                        (rhythmTransient > Math.max(0.007, this.rhythmEnergyHistory * 0.022)) &&
+                        (rawRhythmCombined > this.rhythmEnergyHistory * 1.08) &&
+                        (timeSinceLastBeat > minBeatInterval);
+
+    if (isMajorKick) {
       this.isBeat = true;
       this.beatIntensity = 1.0;
       this.lastBeatTime = now;
-      this.peakThreshold = rawBassCombined * 0.92;
+      this.peakThreshold = Math.max(0.20, rawBassCombined * 0.86);
+    } else if (isLightBeat) {
+      this.isBeat = true;
+      // Proportional strength for light beats: calibrated to [0.48 .. 0.75]
+      const relativePulse = (rhythmTransient / Math.max(0.015, this.rhythmEnergyHistory * 0.20));
+      const lightStrength = Math.min(0.75, Math.max(0.48, 0.48 + relativePulse * 0.25));
+      this.beatIntensity = Math.max(this.beatIntensity * 0.5, lightStrength);
+      this.lastBeatTime = now;
+      this.peakThreshold = Math.max(this.bassEnergyHistory + 0.02, this.peakThreshold * 0.95);
     } else {
       this.isBeat = false;
       this.beatIntensity *= 0.88; // Smooth natural decay
-      this.peakThreshold = Math.max(this.bassEnergyHistory + minMargin * 0.35, this.peakThreshold * 0.98);
+      this.peakThreshold = Math.max(this.bassEnergyHistory + 0.015, this.peakThreshold * 0.975);
     }
 
-    // Adapt baseline once per frame (smooth ~1.5s window)
+    // Adapt baselines once per frame (smooth ~1.5s window)
     this.bassEnergyHistory = this.bassEnergyHistory * 0.965 + rawBassCombined * 0.035;
+    this.rhythmEnergyHistory = this.rhythmEnergyHistory * 0.960 + rawRhythmCombined * 0.040;
     this.prevBassCombined = rawBassCombined;
+    this.prevRhythmCombined = rawRhythmCombined;
     this.prevBass = punchyBass;
 
     // 3. Mid frequency (Bins 7 to 64: ~600Hz - 6kHz: vocals, acoustic guitar, piano, snare snap)

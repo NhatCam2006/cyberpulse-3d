@@ -581,18 +581,20 @@ export const SolarSystemCore = () => {
       // Punchy, snappy transient kick dynamics:
       // Uses pow(beatIntensity, 1.35) * 0.16 to create a crisp, highly visible +16% pop on drum kicks
       // with low bass rumble (+3.5%) so continuous music NEVER stays bloated or flat
-      const kickPunch = Math.pow(beatIntensity, 1.35) * 0.10;
-      const isKickActive = Math.min(1.0, beatIntensity * 2.0);
+      // Responsive physical scale pop for BOTH heavy kicks and light rhythmic beats:
+      // Heavy beat (1.0) -> +10.5% scale pop
+      // Light beat (0.50) -> +5.2% scale pop (clearly palpable heartbeat!)
+      const isKickActive = Math.min(1.0, beatIntensity * 1.5);
       const melodicBreath = (1.0 - isKickActive) * (mid * 0.04 + acousticEnergy * 0.025);
-      const punch = kickPunch + melodicBreath;
-      const subRumble = bass * 0.018;
+      const punch = beatIntensity * 0.085 + Math.pow(beatIntensity, 2.0) * 0.020 + melodicBreath;
+      const subRumble = bass * 0.016;
       const sunScale = 1.0 + subRumble + punch;
       sunMeshRef.current.scale.set(sunScale, sunScale, sunScale);
       sunMeshRef.current.rotation.y += delta * 0.07;
 
       // Dynamically pulse heliocentric starlight illumination across the solar system
       if (pointLightRef.current) {
-        pointLightRef.current.intensity = 4.2 + punch * 1.6;
+        pointLightRef.current.intensity = 4.2 + punch * 2.2;
       }
     }
 

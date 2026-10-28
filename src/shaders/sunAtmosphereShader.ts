@@ -10,11 +10,11 @@
  *    Center (mu = 1.0) is incandescent (1.05); limb (mu -> 0) rolls off softly to (0.45),
  *    establishing rich, unmistakable 3D spherical roundness and volumetric depth.
  * 3. Atmospheric Silhouette Feathering:
- *    Grazing edge (mu < 0.08) feathers smoothly into the transparent void, seamlessly
+ *    Grazing edge (mu < 0.08) feathers smoothly into the transparent void, completely
  *    dissolving the polygonal sphere into the surrounding coronal starlight.
- * 4. Bounded Dual-Tier Luminance Envelope:
- *    Luminance safely bounded within [0.45, 1.18] under ACES Filmic tonemapping:
- *    Zero blinding nuclear blowout ("sáng khủng khiếp"), zero dark mud ("như tắt đèn").
+ * 4. Dual-Tier Audio Starlight Glint:
+ *    Linear + quadratic response ensures BOTH heavy kicks (+12%) and light beats (+6.2%)
+ *    produce crisp, palpable pulses without nuclear blowout or dark extinction.
  */
 
 export const sunAtmosphereVertexShader = /* glsl */ `
@@ -56,11 +56,11 @@ export const sunAtmosphereFragmentShader = /* glsl */ `
     // spherical gradient down to 0.45, establishing tactile 3D curvature and volumetric depth.
     float limbDarkening = 0.45 + 0.60 * pow(mu, 0.65);
 
-    // 2. Stable, Bounded Audio Responsiveness:
-    // Drum kicks trigger a crisp +12% starlight glint; melodies add +5% harmonic shimmer.
-    // Core radiance stays firmly bounded under ACES Filmic tonemapping.
-    float kickFlare = pow(uBeatIntensity, 1.35) * 0.12;
-    float melodicGlint = uMid * 0.05;
+    // 2. Responsive Audio Starlight Glint (Heavy kicks + Light rhythmic beats):
+    // Heavy beat (1.0): +12% starlight glint
+    // Light beat (0.5): +6.2% starlight glint (clearly felt pulse!)
+    float kickFlare = uBeatIntensity * 0.085 + pow(uBeatIntensity, 2.0) * 0.035;
+    float melodicGlint = uMid * 0.04;
     float finalLuminance = limbDarkening * (1.0 + kickFlare + melodicGlint);
 
     // 3. Atmospheric Silhouette Feathering:

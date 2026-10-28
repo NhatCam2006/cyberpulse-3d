@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { AudioEngine } from '../../../audio/AudioEngine';
 
-const NUM_RINGS = 3;           // Ring buffer pool to handle rapid successive beats
+const NUM_RINGS = 6;           // Ring buffer pool to handle rapid successive beats (up to 6 concurrent pulses)
 const RING_SEGMENTS = 256;     // Sub-millimeter circular smoothness
 const BASE_A = 13.5;           // Perfectly framed at the outer planetary frontier (Neptune / Kuiper rim)
 const ECCENTRICITY = 0.028;    // Subtle Keplerian ellipse matching outer planetary orbits
@@ -22,7 +22,7 @@ interface PulseRingState {
  * - Positioned at the outer perimeter of the planetary system (R ~ 13.5 units).
  * - Matches the planetary orbital geometry (subtle Keplerian ellipse in the ecliptic plane).
  * - Sợi chỉ vector siêu mảnh (1px dual-filament starlight thread) following Ryoji Ikeda minimalism.
- * - On each music beat, blooms slightly outward (~8% - 12%) and smoothly dissolves into #050507.
+ * - On each music beat (BOTH heavy kicks and light rhythmic beats), blooms outward and dissolves into #050507.
  * - Completely invisible when idle; preserves 100% deep space void.
  * - 0 GC allocation per frame (100% pre-allocated objects and materials).
  */
@@ -55,7 +55,7 @@ export const OuterHeliosphericPulseRing: React.FC = () => {
     ];
   }, []);
 
-  // Pre-allocate materials for the 3 rings in the pool
+  // Pre-allocate materials for the 6 rings in the pool
   const [coreMaterials, haloMaterials] = useMemo(() => {
     const cores = Array.from({ length: NUM_RINGS }, () => {
       return new THREE.LineBasicMaterial({
@@ -115,15 +115,16 @@ export const OuterHeliosphericPulseRing: React.FC = () => {
 
     beatCooldownRef.current = Math.max(0, beatCooldownRef.current - dt);
 
-    // Trigger next ring on new beat detection edge with minimum 160ms cooldown
+    // Trigger next ring on new beat detection edge (Heavy kicks OR Light beats / Snares)
     if (isBeat && !wasBeatRef.current && beatIntensity > 0.08 && beatCooldownRef.current <= 0) {
       const idx = nextRingIdxRef.current;
       pulsePool.current[idx].active = true;
       pulsePool.current[idx].progress = 0.0;
-      pulsePool.current[idx].peakIntensity = Math.max(0.70, beatIntensity);
+      // Proportional peak intensity: light beats (~0.50) to major kicks (1.0)
+      pulsePool.current[idx].peakIntensity = beatIntensity;
 
       nextRingIdxRef.current = (idx + 1) % NUM_RINGS;
-      beatCooldownRef.current = 0.16; // Prevents double-triggering on same transient
+      beatCooldownRef.current = 0.11; // 110ms refractory enables rapid alternating rhythms
     }
     wasBeatRef.current = isBeat;
 
@@ -139,8 +140,8 @@ export const OuterHeliosphericPulseRing: React.FC = () => {
         continue;
       }
 
-      // Smooth progression over ~0.68 seconds
-      p.progress += dt * (1.40 + bass * 0.30);
+      // Smooth progression over ~0.65 seconds
+      p.progress += dt * (1.45 + bass * 0.25);
 
       if (p.progress >= 1.0) {
         p.active = false;
@@ -152,15 +153,17 @@ export const OuterHeliosphericPulseRing: React.FC = () => {
 
       grp.visible = true;
 
-      // Expand outward slightly: scale 1.0 -> 1.08 .. 1.12
-      const expansion = Math.pow(p.progress, 0.60) * (0.075 + p.peakIntensity * 0.045);
+      // Expand outward:
+      // Heavy beat: scale 1.0 -> 1.11
+      // Light beat (0.50): scale 1.0 -> 1.075 (crisp, clearly palpable bloom!)
+      const expansion = Math.pow(p.progress, 0.60) * (0.045 + p.peakIntensity * 0.065);
       const s = 1.0 + expansion;
       grp.scale.set(s, 1.0, s);
 
       // Smooth cubic dissolution: bright instant attack, gentle lingering decay
       const fade = Math.pow(1.0 - p.progress, 1.8);
-      const alphaCore = fade * (0.55 + p.peakIntensity * 0.40);
-      const alphaHalo = fade * (0.35 + p.peakIntensity * 0.25);
+      const alphaCore = fade * (0.35 + p.peakIntensity * 0.55);
+      const alphaHalo = fade * (0.20 + p.peakIntensity * 0.40);
 
       matCore.opacity = Math.min(1.0, alphaCore);
       matHalo.opacity = Math.min(1.0, alphaHalo);

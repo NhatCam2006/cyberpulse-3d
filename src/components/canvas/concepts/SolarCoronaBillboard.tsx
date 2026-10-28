@@ -46,9 +46,11 @@ export const SolarCoronaBillboard = () => {
     material.uniforms.uBeatIntensity.value = beatIntensity;
 
     // Dual-layer astrophysical coronal breathing:
-    // Expands outward on kicks and melodic peaks to frame the inner solar system
-    const kickPunch = Math.pow(beatIntensity, 1.30) * 1.4;
-    const isKick = Math.min(1.0, beatIntensity * 1.8);
+    // Expands outward on both heavy kicks and light rhythmic beats:
+    // Heavy beat (1.0) -> +1.5 units
+    // Light beat (0.5) -> +0.75 units (clearly palpable, rhythmic breathing!)
+    const kickPunch = beatIntensity * 1.1 + Math.pow(beatIntensity, 2.0) * 0.4;
+    const isKick = Math.min(1.0, beatIntensity * 1.5);
     const melodicBreath = (1.0 - isKick) * (mid * 0.65 + acousticEnergy * 0.40);
     const s = 8.8 + kickPunch + melodicBreath;
     meshRef.current.scale.set(s, s, s);

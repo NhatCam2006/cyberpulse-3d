@@ -8,7 +8,9 @@
  * 2. Parker Solar Wind Coronal Wisps: Delicate, silky filament rays concentrating along the ecliptic plane.
  * 3. Crystalline Anamorphic 4-Point Telescope Aperture Diffraction Cross (Hubble / James Webb Glint):
  *    Razor-thin horizontal & vertical spikes that glint authoritatively on music beats.
- * 4. Bounded Starlight Alpha: Calibrated [0.25, 0.38] dynamic range.
+ * 4. Dual-Tier Audio-Reactive Scaling:
+ *    Responds to BOTH heavy kicks and light rhythmic beats (snares, groove taps).
+ * 5. Bounded Starlight Alpha: Calibrated [0.25, 0.38] dynamic range.
  */
 
 export const solarCoronaRaysVertexShader = /* glsl */ `
@@ -71,9 +73,9 @@ export const solarCoronaRaysFragmentShader = /* glsl */ `
 
     float diffractionCross = (spikeH + spikeV) * 0.88 + (spikeD1 + spikeD2) * 0.30;
 
-    // 4. Audio-Reactive Energy Scaling:
-    // Kick flares expand diffraction spikes and streamers; melody adds crystalline glint
-    float kickFlare = pow(uBeatIntensity, 1.25) * 0.45 + uBass * 0.12;
+    // 4. Dual-Tier Audio-Reactive Energy Scaling:
+    // Flaring responds to BOTH heavy kicks and light rhythmic beats (linear + quadratic)
+    float kickFlare = (uBeatIntensity * 0.32 + pow(uBeatIntensity, 2.0) * 0.16) + uBass * 0.10;
     float melodicGlint = uMid * 0.22;
     float audioBoost = kickFlare + melodicGlint;
 
