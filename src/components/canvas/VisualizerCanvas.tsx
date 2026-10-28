@@ -46,8 +46,11 @@ const CameraRig = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
 
-  // Elastic Inertial Head-Look (Bounded mouse look with Hookean spring auto-centering)
+  // Elastic Inertial Head-Look (Left Click Drag with Hookean spring auto-centering)
   const headLookRef = useRef({
+    isDragging: false,
+    lastX: 0,
+    lastY: 0,
     targetYaw: 0,
     targetPitch: 0,
     currentYaw: 0,
@@ -55,37 +58,68 @@ const CameraRig = () => {
   });
 
   useEffect(() => {
+    const handleMouseDown = (e: MouseEvent) => {
+      // Only active in spacecraft mode
+      if (usePlayerStore.getState().cameraMode !== 'spacecraft') return;
+      // Only left mouse button (e.button === 0)
+      if (e.button !== 0) return;
+      // Do not intercept clicks on interactive UI elements (buttons, inputs, sliders, drawers)
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('button, input, select, textarea, [role="button"], a')) return;
+
+      headLookRef.current.isDragging = true;
+      headLookRef.current.lastX = e.clientX;
+      headLookRef.current.lastY = e.clientY;
+      document.body.style.cursor = 'grabbing';
+    };
+
     const handleMouseMove = (e: MouseEvent) => {
-      // Map screen coordinates relative to center: nx in [-1, 1], ny in [-1, 1]
-      const nx = (e.clientX / window.innerWidth) * 2 - 1;
-      const ny = (e.clientY / window.innerHeight) * 2 - 1;
+      const hl = headLookRef.current;
+      if (!hl.isDragging) return;
+      if (usePlayerStore.getState().cameraMode !== 'spacecraft') return;
 
-      // Deadzone in the center (8% of screen) for steady resting gaze
-      const distFromCenter = Math.hypot(nx, ny);
-      if (distFromCenter < 0.08) {
-        headLookRef.current.targetYaw = 0;
-        headLookRef.current.targetPitch = 0;
-        return;
+      const dx = e.clientX - hl.lastX;
+      const dy = e.clientY - hl.lastY;
+      hl.lastX = e.clientX;
+      hl.lastY = e.clientY;
+
+      // Sensitivity: ~200px drag for full 28° yaw, ~140px drag for full 16° pitch
+      const yawSens = 0.0024;
+      const pitchSens = 0.0020;
+      const maxYaw = 0.488;   // 28 deg
+      const maxPitch = 0.279; // 16 deg
+
+      hl.targetYaw = THREE.MathUtils.clamp(hl.targetYaw + dx * yawSens, -maxYaw, maxYaw);
+      hl.targetPitch = THREE.MathUtils.clamp(hl.targetPitch - dy * pitchSens, -maxPitch, maxPitch);
+    };
+
+    const handleMouseUp = () => {
+      const hl = headLookRef.current;
+      if (hl.isDragging) {
+        hl.isDragging = false;
+        // Auto-return: reset target back to original forward vista
+        hl.targetYaw = 0;
+        hl.targetPitch = 0;
+        document.body.style.cursor = '';
       }
-
-      // Bounded angles: Max yaw = 28° (0.488 rad), Max pitch = 16° (0.279 rad)
-      const maxYaw = 0.488;
-      const maxPitch = 0.279;
-
-      headLookRef.current.targetYaw = nx * maxYaw;
-      headLookRef.current.targetPitch = -ny * maxPitch;
     };
 
     const handleMouseLeave = () => {
-      headLookRef.current.targetYaw = 0;
-      headLookRef.current.targetPitch = 0;
+      handleMouseUp();
     };
 
+    window.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('mouseleave', handleMouseLeave);
+    window.addEventListener('blur', handleMouseUp);
     return () => {
+      window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('mouseleave', handleMouseLeave);
+      window.removeEventListener('blur', handleMouseUp);
+      document.body.style.cursor = '';
     };
   }, []);
 
@@ -265,9 +299,11 @@ const CameraRig = () => {
           .normalize();
       }
 
-      // 3. Elastic Inertial Head-Look (Hookean spring interpolation with auto-centering)
+      // 3. Elastic Inertial Head-Look (Left-Click Drag with Hookean spring auto-centering)
       const hl = headLookRef.current;
-      const springRate = Math.min(1.0, delta * 6.5);
+      // Snappy and responsive while actively dragging (14.0 * delta);
+      // Gentle, elegant floating return when released (5.2 * delta)
+      const springRate = Math.min(1.0, hl.isDragging ? delta * 14.0 : delta * 5.2);
       hl.currentYaw += (hl.targetYaw - hl.currentYaw) * springRate;
       hl.currentPitch += (hl.targetPitch - hl.currentPitch) * springRate;
 
