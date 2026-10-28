@@ -29,7 +29,7 @@ export const SolarCoronaBillboard = () => {
     });
   }, []);
 
-  useFrame((state, delta) => {
+  useFrame((state) => {
     if (!meshRef.current) return;
 
     // Billboard: Always orient directly towards the active camera
@@ -45,11 +45,12 @@ export const SolarCoronaBillboard = () => {
     material.uniforms.uAcousticEnergy.value = acousticEnergy;
     material.uniforms.uBeatIntensity.value = beatIntensity;
 
-    // Dual-layer astrophysical coronal breathing (gentle, anti-glare, non-blinding):
-    const kickPunch = Math.pow(beatIntensity, 1.30) * 0.75;
+    // Dual-layer astrophysical coronal breathing:
+    // Expands outward on kicks and melodic peaks to frame the inner solar system
+    const kickPunch = Math.pow(beatIntensity, 1.30) * 1.4;
     const isKick = Math.min(1.0, beatIntensity * 1.8);
-    const melodicBreath = (1.0 - isKick) * (mid * 0.45 + acousticEnergy * 0.30);
-    const s = 5.6 + kickPunch + melodicBreath;
+    const melodicBreath = (1.0 - isKick) * (mid * 0.65 + acousticEnergy * 0.40);
+    const s = 8.8 + kickPunch + melodicBreath;
     meshRef.current.scale.set(s, s, s);
   });
 
