@@ -60,6 +60,9 @@ export interface PlayerState {
   // Live Audio Input (Spotify / System / Mic)
   isLiveInput: boolean;
   liveInputType: 'system' | 'mic' | null;
+  liveTrackTitle: string | null;
+  liveTrackArtist: string | null;
+  setLiveTrackInfo: (title: string | null, artist: string | null) => void;
   toggleSystemAudio: () => Promise<boolean>;
   toggleMicAudio: () => Promise<boolean>;
 
@@ -157,6 +160,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   isLiveInput: false,
   liveInputType: null,
+  liveTrackTitle: null,
+  liveTrackArtist: null,
+  setLiveTrackInfo: (title: string | null, artist: string | null) =>
+    set({ liveTrackTitle: title, liveTrackArtist: artist }),
   activeTab: 'system',
   colorTheme: 'cyan-magenta',
   cameraMode: 'vista',
@@ -400,7 +407,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       engine.stopLiveInput();
       const audio = getGlobalAudio();
       audio.muted = false;
-      set({ isLiveInput: false, liveInputType: null });
+      set({ isLiveInput: false, liveInputType: null, liveTrackTitle: null, liveTrackArtist: null });
       return false;
     } else {
       // Always pause and mute local audio so it NEVER conflicts with Spotify
@@ -415,10 +422,19 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
       const success = await engine.startSystemAudioCapture(() => {
         getGlobalAudio().muted = false;
-        set({ isLiveInput: false, liveInputType: null });
+        set({ isLiveInput: false, liveInputType: null, liveTrackTitle: null, liveTrackArtist: null });
       });
 
-      set({ isLiveInput: success, liveInputType: success ? 'system' : null });
+      if (success) {
+        set({
+          isLiveInput: true,
+          liveInputType: 'system',
+          liveTrackTitle: engine.liveTrackMeta ? engine.liveTrackMeta.title : 'SPOTIFY LIVE STREAM',
+          liveTrackArtist: engine.liveTrackMeta ? engine.liveTrackMeta.artist : 'DESKTOP AUDIO',
+        });
+      } else {
+        set({ isLiveInput: false, liveInputType: null });
+      }
       return success;
     }
   },
@@ -431,7 +447,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       engine.stopLiveInput();
       const audio = getGlobalAudio();
       audio.muted = false;
-      set({ isLiveInput: false, liveInputType: null });
+      set({ isLiveInput: false, liveInputType: null, liveTrackTitle: null, liveTrackArtist: null });
       return false;
     } else {
       const audio = getGlobalAudio();
@@ -445,10 +461,19 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
       const success = await engine.startMicAudioCapture(() => {
         getGlobalAudio().muted = false;
-        set({ isLiveInput: false, liveInputType: null });
+        set({ isLiveInput: false, liveInputType: null, liveTrackTitle: null, liveTrackArtist: null });
       });
 
-      set({ isLiveInput: success, liveInputType: success ? 'mic' : null });
+      if (success) {
+        set({
+          isLiveInput: true,
+          liveInputType: 'mic',
+          liveTrackTitle: 'MICROPHONE / STEREO MIX',
+          liveTrackArtist: 'LOCAL AUDIO INPUT',
+        });
+      } else {
+        set({ isLiveInput: false, liveInputType: null });
+      }
       return success;
     }
   },

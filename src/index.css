@@ -32,3 +32,12 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #666666;
 }
+
+@keyframes liveScan {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(calc(100vw - 48px - 144px));
+  }
+}

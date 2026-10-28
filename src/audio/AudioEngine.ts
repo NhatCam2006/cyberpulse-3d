@@ -5,6 +5,8 @@
  * and a 128 BPM procedural Cyberpunk Demo Synth.
  */
 
+import { parseStreamMetadata, ParsedTrackInfo } from './streamMetadata';
+
 export interface AudioFrequencyData {
   bass: number;
   mid: number;
@@ -79,8 +81,10 @@ export class AudioEngine {
 
   // Live Stream / System Audio Input (Spotify / Desktop Capture)
   public isLiveInputActive: boolean = false;
+  public liveTrackMeta: ParsedTrackInfo | null = null;
   private liveStream: MediaStream | null = null;
   private liveSourceNode: MediaStreamAudioSourceNode | null = null;
+  private silentSinkGain: GainNode | null = null;
 
   // Procedural 128 BPM Synthwave Demo
   public isDemoPlaying: boolean = false;
@@ -121,6 +125,15 @@ export class AudioEngine {
       this.demoMasterGain.gain.setValueAtTime(0.7, this.ctx.currentTime);
       this.demoMasterGain.connect(this.analyser);
       this.demoMasterGain.connect(this.ctx.destination);
+
+      // Web Audio render quantum pull-pump:
+      // AnalyserNode MUST be connected to ctx.destination for Chrome to pull audio buffers from live media streams!
+      // We route analyser -> silentSinkGain (gain = 0.0) -> destination.
+      // This forces 100% continuous FFT buffer streaming while guaranteeing ZERO audio bleed / zero echo to speakers!
+      this.silentSinkGain = this.ctx.createGain();
+      this.silentSinkGain.gain.setValueAtTime(0.0, this.ctx.currentTime);
+      this.analyser.connect(this.silentSinkGain);
+      this.silentSinkGain.connect(this.ctx.destination);
     }
 
     if (this.ctx.state === 'suspended') {
@@ -495,6 +508,10 @@ export class AudioEngine {
       this.initContext();
       if (!this.ctx || !this.analyser) return false;
 
+      if (this.ctx.state === 'suspended') {
+        await this.ctx.resume();
+      }
+
       if (this.isDemoPlaying) {
         this.stopDemoSynth();
       }
@@ -519,26 +536,45 @@ export class AudioEngine {
         throw new Error("No audio track selected! Please check 'Share system audio'.");
       }
 
-      // Stop video track immediately to save GPU
+      if (this.ctx.state === 'suspended') {
+        await this.ctx.resume();
+      }
+
+      // Keep video tracks alive to prevent Chrome from terminating the capture session,
+      // but disable rendering to eliminate GPU/CPU decode overhead
       const videoTracks = stream.getVideoTracks();
-      videoTracks.forEach((vt) => vt.stop());
+      videoTracks.forEach((vt) => {
+        vt.enabled = false;
+      });
 
       // Disconnect existing live node
       if (this.liveSourceNode) {
-        this.liveSourceNode.disconnect();
+        try {
+          this.liveSourceNode.disconnect();
+        } catch {
+          // ignore
+        }
         this.liveSourceNode = null;
       }
 
-      this.liveSourceNode = this.ctx.createMediaStreamSource(new MediaStream(audioTracks));
+      // Connect original stream directly to createMediaStreamSource
+      this.liveSourceNode = this.ctx.createMediaStreamSource(stream);
       this.liveSourceNode.connect(this.analyser);
 
       this.liveStream = stream;
       this.isLiveInputActive = true;
 
-      audioTracks[0].onended = () => {
+      // Extract window/tab title for track metadata
+      const streamLabel = videoTracks[0]?.label || audioTracks[0]?.label || '';
+      this.liveTrackMeta = parseStreamMetadata(streamLabel);
+
+      const handleEnded = () => {
         this.stopLiveInput();
         if (onEndedCallback) onEndedCallback();
       };
+
+      if (audioTracks[0]) audioTracks[0].onended = handleEnded;
+      if (videoTracks[0]) videoTracks[0].onended = handleEnded;
 
       return true;
     } catch (err) {
@@ -555,6 +591,10 @@ export class AudioEngine {
     try {
       this.initContext();
       if (!this.ctx || !this.analyser) return false;
+
+      if (this.ctx.state === 'suspended') {
+        await this.ctx.resume();
+      }
 
       if (this.isDemoPlaying) {
         this.stopDemoSynth();
@@ -573,8 +613,16 @@ export class AudioEngine {
         },
       });
 
+      if (this.ctx.state === 'suspended') {
+        await this.ctx.resume();
+      }
+
       if (this.liveSourceNode) {
-        this.liveSourceNode.disconnect();
+        try {
+          this.liveSourceNode.disconnect();
+        } catch {
+          // ignore
+        }
         this.liveSourceNode = null;
       }
 
@@ -583,6 +631,7 @@ export class AudioEngine {
 
       this.liveStream = stream;
       this.isLiveInputActive = true;
+      this.liveTrackMeta = { title: 'MICROPHONE / STEREO MIX', artist: 'LOCAL AUDIO INPUT' };
 
       stream.getAudioTracks()[0].onended = () => {
         this.stopLiveInput();
@@ -602,7 +651,11 @@ export class AudioEngine {
    */
   public stopLiveInput(): void {
     if (this.liveSourceNode) {
-      this.liveSourceNode.disconnect();
+      try {
+        this.liveSourceNode.disconnect();
+      } catch {
+        // ignore
+      }
       this.liveSourceNode = null;
     }
     if (this.liveStream) {
@@ -613,5 +666,6 @@ export class AudioEngine {
       this.audioElement.muted = false;
     }
     this.isLiveInputActive = false;
+    this.liveTrackMeta = null;
   }
 }
