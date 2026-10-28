@@ -56,6 +56,12 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     const cArtist = cleanArtistName(artist) || (artist || '').trim();
     const trackKey = `${cTitle.toLowerCase()} - ${cArtist.toLowerCase()}`;
     const lines = data.lines || [];
+
+    // Avoid clearing activeLine and resetting activeLineIndex if already set for this track
+    if (get().currentTrackKey === trackKey && get().lines.length > 0 && get().lines.length === lines.length) {
+      return;
+    }
+
     set({
       currentTrackKey: trackKey,
       trackName: title,

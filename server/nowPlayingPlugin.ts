@@ -105,7 +105,7 @@ async function fetchLyricsForTrack(
     return lyricsCache.get(cacheKey) || null;
   }
 
-  // Temporary negative cache check (cooldown 15s to allow recovery if network or song is updated)
+  // Temporary negative cache check (short 3s cooldown to allow fast auto-healing)
   const negExpires = lyricsNegativeCache.get(cacheKey);
   if (negExpires && Date.now() < negExpires) {
     return null;
@@ -122,9 +122,9 @@ async function fetchLyricsForTrack(
 
     // Build multi-tier search & direct get URLs fired concurrently for high recall & resilience
     const urls: string[] = [
-      `https://lrclib.net/api/get?track_name=${encodeURIComponent(cTitle)}&artist_name=${encodeURIComponent(cArtist)}`,
-      `https://lrclib.net/api/search?track_name=${encodeURIComponent(cTitle)}&artist_name=${encodeURIComponent(cArtist)}`,
       `https://lrclib.net/api/search?q=${encodeURIComponent(cTitle + ' ' + cArtist)}`,
+      `https://lrclib.net/api/search?track_name=${encodeURIComponent(cTitle)}&artist_name=${encodeURIComponent(cArtist)}`,
+      `https://lrclib.net/api/get?track_name=${encodeURIComponent(cTitle)}&artist_name=${encodeURIComponent(cArtist)}`,
     ];
 
     if (duration && duration > 0) {
@@ -134,14 +134,14 @@ async function fetchLyricsForTrack(
     // If artist has multiple words or moniker (e.g. "HENRY LAU" -> "HENRY"), query first word
     const artistTokens = cArtist.split(/\s+/).filter(Boolean);
     if (artistTokens.length > 1) {
-      urls.push(`https://lrclib.net/api/get?track_name=${encodeURIComponent(cTitle)}&artist_name=${encodeURIComponent(artistTokens[0])}`);
       urls.push(`https://lrclib.net/api/search?q=${encodeURIComponent(cTitle + ' ' + artistTokens[0])}`);
+      urls.push(`https://lrclib.net/api/get?track_name=${encodeURIComponent(cTitle)}&artist_name=${encodeURIComponent(artistTokens[0])}`);
     }
 
     // If original title had bracketed/Hangul alternate (e.g. "태풍 (The Eye)" or "Only One"), query raw title
     if (title !== cTitle) {
-      urls.push(`https://lrclib.net/api/get?track_name=${encodeURIComponent(title.trim())}&artist_name=${encodeURIComponent(cArtist)}`);
       urls.push(`https://lrclib.net/api/search?q=${encodeURIComponent(title.trim() + ' ' + cArtist)}`);
+      urls.push(`https://lrclib.net/api/get?track_name=${encodeURIComponent(title.trim())}&artist_name=${encodeURIComponent(cArtist)}`);
     }
 
     const fetchPromises = urls.map((u) =>
@@ -174,7 +174,7 @@ async function fetchLyricsForTrack(
     });
 
     if (unique.length === 0) {
-      lyricsNegativeCache.set(cacheKey, Date.now() + 15000);
+      lyricsNegativeCache.set(cacheKey, Date.now() + 3000);
       pendingLyricsFetches.delete(cacheKey);
       return null;
     }
@@ -450,9 +450,14 @@ export function nowPlayingPlugin(): Plugin {
                     const cleanArtist = cleanArtistName(data.artist || '') || (data.artist || '').trim();
                     const trackKey = `${cleanTitle.toLowerCase()} - ${cleanArtist.toLowerCase()}`;
 
-                    // Pre-fetch artwork and lyrics strictly ONCE per song change
-                    if (lastPrefetchedTrackKey !== trackKey) {
-                      lastPrefetchedTrackKey = trackKey;
+                    // Pre-fetch artwork and lyrics on song change or auto-heal if previously missing
+                    const isNewTrack = lastPrefetchedTrackKey !== trackKey;
+                    const isMissingLyrics = !cachedMediaInfo.lyrics && Boolean(data.duration && data.duration > 0);
+
+                    if (isNewTrack || isMissingLyrics) {
+                      if (isNewTrack) {
+                        lastPrefetchedTrackKey = trackKey;
+                      }
 
                       // Pre-fetch artwork
                       if (!cachedMediaInfo.artwork) {
@@ -469,11 +474,13 @@ export function nowPlayingPlugin(): Plugin {
                       }
 
                       // Pre-fetch lyrics and embed directly into cachedMediaInfo
-                      fetchLyricsForTrack(cleanTitle, cleanArtist, data.duration, data.album).then((lyr) => {
-                        if (lyr && cachedMediaInfo && cachedMediaInfo.title === data.title) {
-                          cachedMediaInfo.lyrics = lyr;
-                        }
-                      });
+                      if (!cachedMediaInfo.lyrics) {
+                        fetchLyricsForTrack(cleanTitle, cleanArtist, data.duration, data.album).then((lyr) => {
+                          if (lyr && cachedMediaInfo && cachedMediaInfo.title === data.title) {
+                            cachedMediaInfo.lyrics = lyr;
+                          }
+                        });
+                      }
                     }
                   }
                 } catch {
