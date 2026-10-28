@@ -29,7 +29,7 @@ export const SolarCoronaBillboard = () => {
     });
   }, []);
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     if (!meshRef.current) return;
 
     // Billboard: Always orient directly towards the active camera
@@ -45,14 +45,11 @@ export const SolarCoronaBillboard = () => {
     material.uniforms.uAcousticEnergy.value = acousticEnergy;
     material.uniforms.uBeatIntensity.value = beatIntensity;
 
-    // Dual-layer astrophysical coronal breathing:
-    // Expands outward on both heavy kicks and light rhythmic beats:
-    // Heavy beat (1.0) -> +1.5 units
-    // Light beat (0.5) -> +0.75 units (clearly palpable, rhythmic breathing!)
-    const kickPunch = beatIntensity * 1.1 + Math.pow(beatIntensity, 2.0) * 0.4;
-    const isKick = Math.min(1.0, beatIntensity * 1.5);
-    const melodicBreath = (1.0 - isKick) * (mid * 0.65 + acousticEnergy * 0.40);
-    const s = 8.8 + kickPunch + melodicBreath;
+    // Dual-layer coronal breathing:
+    // Snappy starlight optical diffraction flare (+0.60 on kicks) that returns fast
+    const kickPunch = Math.pow(beatIntensity, 1.25) * 0.60;
+    const melodicBreath = (1.0 - Math.min(1.0, beatIntensity * 1.5)) * (mid * 0.20 + acousticEnergy * 0.15);
+    const s = 6.8 + kickPunch + melodicBreath;
     meshRef.current.scale.set(s, s, s);
   });
 

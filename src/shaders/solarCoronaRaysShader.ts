@@ -1,16 +1,11 @@
 /**
  * solarCoronaRaysShader.ts
  * Astrophysical Solar Corona Streamers & Optical Diffraction Spikes Shader.
- * 
  * Renders on a camera-facing billboard quad centered at Sol (0,0,0):
- * 1. Tight Exponential Coronal Halo: Hugs Sol's limb closely with silky starlight diffusion
- *    (zero giant foggy blob, 100% transparent across outer orbits).
- * 2. Parker Solar Wind Coronal Wisps: Delicate, silky filament rays concentrating along the ecliptic plane.
- * 3. Crystalline Anamorphic 4-Point Telescope Aperture Diffraction Cross (Hubble / James Webb Glint):
- *    Razor-thin horizontal & vertical spikes that glint authoritatively on music beats.
- * 4. Dual-Tier Audio-Reactive Scaling:
- *    Responds to BOTH heavy kicks and light rhythmic beats (snares, groove taps).
- * 5. Bounded Starlight Alpha: Calibrated [0.25, 0.38] dynamic range.
+ * 1. 1/r^gamma radial solar wind coronal streamers.
+ * 2. 4-point / 6-point Optical Diffraction Spikes (Telescope aperture diffraction).
+ * 3. Superheated Inner Coronal Halo with exponential luminance decay.
+ * 4. Audio-reactive flare bursts driven by Bass & Beat transients.
  */
 
 export const solarCoronaRaysVertexShader = /* glsl */ `
@@ -41,55 +36,50 @@ export const solarCoronaRaysFragmentShader = /* glsl */ `
     float r = length(p);
     float angle = atan(p.y, p.x);
 
-    // Fade out cleanly at quad circular boundary
+    // Fade out at borders
     if (r > 1.0) discard;
 
-    // 1. Tight Exponential Coronal Halo:
-    // Decays exponentially outward from Sol's limb (R ~ 0.20), providing a soft starlight aura
-    // without obscuring planetary orbits or creating a dense white fog box
-    float innerHalo = exp(-r * 4.8) * 0.72;
+    // 1. Inner Photosphere Core Mask (the solar sphere sits in r < 0.25)
+    float innerCut = smoothstep(0.20, 0.28, r);
 
-    // 2. Parker Solar Wind Coronal Streamers (Ecliptic Helmet Streamers)
-    // Multi-Harmonic silky starlight rays along the ecliptic plane
-    float eclipticDensity = 0.75 + 0.55 * pow(abs(cos(angle)), 2.0);
-    float melodicTwist = uMid * 0.18;
-    float ray1 = sin((angle + melodicTwist) * 12.0 + uTime * 0.08) * 0.5 + 0.5;
-    float ray2 = sin((angle - melodicTwist * 0.5) * 28.0 - uTime * 0.14) * 0.5 + 0.5;
-    float ray3 = sin(angle * 60.0 + uTime * 0.24) * 0.5 + 0.5;
-    float streamerRays = pow(ray1 * 0.50 + ray2 * 0.32 + ray3 * 0.18, 2.8) * eclipticDensity;
+    // 2. Multi-Harmonic Coronal Streamer Rays (Parker solar wind streamers)
+    // Streamers gently twist and shimmer with melodic mid frequencies (piano/vocals)
+    float melodicRayTwist = uMid * 0.35;
+    float rays1 = sin((angle + melodicRayTwist) * 12.0 + uTime * 0.15) * 0.5 + 0.5;
+    float rays2 = sin((angle - melodicRayTwist * 0.5) * 28.0 - uTime * 0.25) * 0.5 + 0.5;
+    float rays3 = sin(angle * 64.0 + uTime * 0.40) * 0.5 + 0.5;
+    float streamers = pow(rays1 * 0.5 + rays2 * 0.3 + rays3 * 0.2, 2.5);
 
-    // Radial streamer falloff: silky, translucent starlight
-    float streamerFalloff = pow(max(0.0, 1.0 - r), 1.8) / (r * 2.0 + 0.14);
-
-    // 3. Precision Anamorphic 4-Point Telescope Aperture Diffraction Cross (Hubble / JWST Cross)
-    // Primary horizontal ecliptic spike (slight anamorphic bias for 16:9 widescreen composition)
-    float spikeH = 0.0035 / (abs(p.y) + 0.0035) * smoothstep(1.0, 0.015, abs(p.x));
-    float spikeV = 0.0024 / (abs(p.x) + 0.0024) * smoothstep(1.0, 0.02, abs(p.y));
-
-    // Secondary 45-degree diagonal cross (delicate crystalline glints)
-    vec2 rot45 = vec2(p.x * 0.7071 - p.y * 0.7071, p.x * 0.7071 + p.y * 0.7071);
-    float spikeD1 = 0.0014 / (abs(rot45.y) + 0.0030) * smoothstep(0.85, 0.04, abs(rot45.x));
-    float spikeD2 = 0.0014 / (abs(rot45.x) + 0.0030) * smoothstep(0.85, 0.04, abs(rot45.y));
-
-    float diffractionCross = (spikeH + spikeV) * 0.88 + (spikeD1 + spikeD2) * 0.30;
-
-    // 4. Dual-Tier Audio-Reactive Energy Scaling:
-    // Flaring responds to BOTH heavy kicks and light rhythmic beats (linear + quadratic)
-    float kickFlare = (uBeatIntensity * 0.32 + pow(uBeatIntensity, 2.0) * 0.16) + uBass * 0.10;
-    float melodicGlint = uMid * 0.22;
-    float audioBoost = kickFlare + melodicGlint;
-
-    // Combine tight halo, delicate streamers, and crystalline diffraction cross
-    float totalCorona = innerHalo * 0.45 + streamerFalloff * streamerRays * 0.35 + diffractionCross * 0.50;
-    totalCorona *= (1.0 + audioBoost * 0.65);
-
-    // Clean outer boundary feathering with zero boundary derivative
-    float outerFeather = pow(clamp(1.0 - r, 0.0, 1.0), 2.0);
+    // 3. Optical Diffraction Spikes (4-Point Cardinal Cross + 45-degree secondary cross)
+    // Primary cross (horizontal & vertical aperture diffraction)
+    float spikeH = 0.008 / (abs(p.y) + 0.008) * smoothstep(1.0, 0.05, abs(p.x));
+    float spikeV = 0.008 / (abs(p.x) + 0.008) * smoothstep(1.0, 0.05, abs(p.y));
     
-    // Calibrated starlight alpha: floor at 0.25, ceiling safely capped at 0.38
-    // Pure starlight silver: translucent, silky, crystalline
-    float finalAlpha = clamp(totalCorona * outerFeather, 0.0, 1.0) * (0.25 + audioBoost * 0.12);
+    // 45-degree secondary diffraction cross
+    vec2 rot45 = vec2(p.x * 0.7071 - p.y * 0.7071, p.x * 0.7071 + p.y * 0.7071);
+    float spikeD1 = 0.004 / (abs(rot45.y) + 0.008) * smoothstep(0.85, 0.08, abs(rot45.x));
+    float spikeD2 = 0.004 / (abs(rot45.x) + 0.008) * smoothstep(0.85, 0.08, abs(rot45.y));
 
-    gl_FragColor = vec4(vec3(1.0), finalAlpha);
+    float diffractionSpikes = (spikeH + spikeV) * 0.85 + (spikeD1 + spikeD2) * 0.45;
+
+    // 4. Exponential Coronal Falloff (1 / r^2.2)
+    float coronaFalloff = pow(max(0.0, 1.0 - r), 2.4) / (r * 1.8 + 0.05);
+
+    // 5. Dual-Layer Audio Pulsation:
+    // When beat kick hits: explosive transient punch (low bass baseline + powerful kick pop)
+    // When in melodic intro/verse (no kick): warm breathing according to vocal melody and piano chords!
+    float kickFlare = uBass * 0.12 + pow(uBeatIntensity, 1.25) * 0.95;
+    float kickMask = smoothstep(0.12, 0.60, uBeatIntensity);
+    float melodicBreath = (uMid * 0.48 + uAcousticEnergy * 0.32) * (1.0 - kickMask);
+    float flare = kickFlare + melodicBreath;
+
+    float totalCorona = (coronaFalloff * (0.45 + streamers * 0.55) + diffractionSpikes * 0.35) * (1.0 + flare);
+
+    // Outer feathering with zero boundary derivative
+    float edgeMask = pow(clamp(1.0 - r, 0.0, 1.0), 2.2);
+    float finalAlpha = clamp(totalCorona * edgeMask * innerCut, 0.0, 1.0);
+
+    // Pure monochrome laboratory HDR glow
+    gl_FragColor = vec4(vec3(1.0), finalAlpha * 0.78);
   }
 `;
