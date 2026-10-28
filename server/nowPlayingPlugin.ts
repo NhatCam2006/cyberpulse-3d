@@ -31,6 +31,7 @@ const artworkCache = new Map<string, string | null>();
 const pendingArtworkFetches = new Set<string>();
 
 const lyricsCache = new Map<string, LyricsResponse | null>();
+const lyricsNegativeCache = new Map<string, number>(); // cacheKey -> expiresAt timestamp (15s TTL)
 const pendingLyricsFetches = new Set<string>();
 
 function parseLrc(lrcText: string): LyricLine[] {
@@ -97,9 +98,17 @@ async function fetchLyricsForTrack(
   const cArtist = cleanArtistName(artist) || artist.trim();
   const cacheKey = `${cTitle.toLowerCase()} - ${cArtist.toLowerCase()}`;
 
+  // Positive cache check (cached successful lyrics)
   if (lyricsCache.has(cacheKey)) {
     return lyricsCache.get(cacheKey) || null;
   }
+
+  // Temporary negative cache check (cooldown 15s to allow recovery if network or song is updated)
+  const negExpires = lyricsNegativeCache.get(cacheKey);
+  if (negExpires && Date.now() < negExpires) {
+    return null;
+  }
+
   if (pendingLyricsFetches.has(cacheKey)) {
     return null;
   }
@@ -109,35 +118,35 @@ async function fetchLyricsForTrack(
   try {
     const headers = { 'User-Agent': 'Cyberpulse3D/1.0.0 (https://github.com/NhatCam2006/cyberpulse-3d)' };
 
-    // Strategy 1: Search by track_name & artist_name (single request, returns ranked entries)
-    let candidates: LrcItem[] = [];
+    // Build multi-tier search URLs fired concurrently for high recall
+    const urls: string[] = [
+      `https://lrclib.net/api/search?track_name=${encodeURIComponent(cTitle)}&artist_name=${encodeURIComponent(cArtist)}`,
+      `https://lrclib.net/api/search?q=${encodeURIComponent(cTitle + ' ' + cArtist)}`,
+    ];
 
-    const url1 = `https://lrclib.net/api/search?track_name=${encodeURIComponent(cTitle)}&artist_name=${encodeURIComponent(cArtist)}`;
-    try {
-      const res1 = await fetch(url1, { headers, signal: AbortSignal.timeout(3500) });
-      if (res1.ok) {
-        const list = (await res1.json()) as LrcItem[];
-        if (Array.isArray(list) && list.length > 0) {
-          candidates = list;
-        }
-      }
-    } catch {
-      // ignore
+    // If artist has multiple words or moniker (e.g. "HENRY LAU" -> "HENRY"), query first word
+    const artistTokens = cArtist.split(/\s+/).filter(Boolean);
+    if (artistTokens.length > 1) {
+      urls.push(`https://lrclib.net/api/search?q=${encodeURIComponent(cTitle + ' ' + artistTokens[0])}`);
     }
 
-    // Strategy 2: If no synced lyrics in candidates, try exact get or keyword search
-    if (!candidates.some((c) => !!c.syncedLyrics)) {
-      const url2 = `https://lrclib.net/api/search?q=${encodeURIComponent(cTitle + ' ' + cArtist)}`;
-      try {
-        const res2 = await fetch(url2, { headers, signal: AbortSignal.timeout(3500) });
-        if (res2.ok) {
-          const list2 = (await res2.json()) as LrcItem[];
-          if (Array.isArray(list2) && list2.length > 0) {
-            candidates.push(...list2);
-          }
-        }
-      } catch {
-        // ignore
+    // If original title had bracketed/Hangul alternate (e.g. "태풍 (The Eye)" or "Only One"), query raw title
+    if (title !== cTitle) {
+      urls.push(`https://lrclib.net/api/search?q=${encodeURIComponent(title.trim() + ' ' + cArtist)}`);
+    }
+
+    const fetchPromises = urls.map((u) =>
+      fetch(u, { headers, signal: AbortSignal.timeout(3800) })
+        .then((res) => (res.ok ? (res.json() as Promise<LrcItem[]>) : []))
+        .catch(() => [] as LrcItem[])
+    );
+
+    const results = await Promise.allSettled(fetchPromises);
+    const candidates: LrcItem[] = [];
+
+    for (const r of results) {
+      if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+        candidates.push(...r.value);
       }
     }
 
@@ -150,53 +159,70 @@ async function fetchLyricsForTrack(
     });
 
     if (unique.length === 0) {
-      // Cache empty response with cooldown so we don't spam lrclib
-      lyricsCache.set(cacheKey, null);
+      lyricsNegativeCache.set(cacheKey, Date.now() + 15000);
       pendingLyricsFetches.delete(cacheKey);
       return null;
     }
 
-    // Detect if this song has Korean context (Korean artist or any result has Hangul)
-    const isKoreanContext = unique.some(
-      (item) =>
-        hasHangul(item.syncedLyrics || '') ||
-        hasHangul(item.plainLyrics || '') ||
-        hasHangul(item.artistName || '') ||
-        hasHangul(item.trackName || '') ||
-        /boa|woodz|vixx|tvxq|bts|blackpink|exo|twice|newjeans|aespa|stray kids|seventeen|taeyeon|iu|monsta x|red velvet|nct|ateez|mc mong|bigbang|shinee/i.test(
-          cArtist
-        )
-    );
+    // Detect if this song has Korean context (Korean artist or any candidate contains Hangul)
+    const isKoreanContext =
+      hasHangul(title) ||
+      hasHangul(artist) ||
+      unique.some(
+        (item) =>
+          hasHangul(item.syncedLyrics || '') ||
+          hasHangul(item.plainLyrics || '') ||
+          hasHangul(item.artistName || '') ||
+          hasHangul(item.trackName || '')
+      ) ||
+      /henry|boa|woodz|vixx|tvxq|bts|blackpink|exo|twice|newjeans|aespa|stray kids|seventeen|taeyeon|iu|monsta x|red velvet|nct|ateez|mc mong|bigbang|shinee|super junior|infinite/i.test(
+        cArtist
+      );
 
-    // Score and rank candidates
+    // Score and rank candidates to preserve native language and authentic version
     const scored = unique.map((item) => {
       let score = 0;
       const lrc = item.syncedLyrics || item.plainLyrics || '';
+      const itemTitleLower = (item.trackName || '').toLowerCase();
+      const userTitleLower = cTitle.toLowerCase();
 
-      if (item.syncedLyrics) score += 60;
-      else if (item.plainLyrics) score += 10;
+      if (item.syncedLyrics) score += 100;
+      else if (item.plainLyrics) score += 20;
 
-      // Korean Hangul enforcement (keep Korean as native Korean characters, not Romanized or Japanese)
+      // Penalize unwanted localized translations if the original track doesn't ask for them
+      if (!userTitleLower.includes('english') && (itemTitleLower.includes('english') || itemTitleLower.includes('(eng)'))) {
+        score -= 250;
+      }
+      if (!userTitleLower.includes('japanese') && (itemTitleLower.includes('japanese') || itemTitleLower.includes('(jap)') || hasJapanese(lrc))) {
+        score -= 250;
+      }
+      if (!userTitleLower.includes('chinese') && itemTitleLower.includes('chinese')) {
+        score -= 250;
+      }
+
+      // Authentic Korean Hangul priority (never replace Korean with Romanized English or Japanese)
       if (isKoreanContext) {
         if (hasHangul(lrc)) {
-          score += 160; // Massively boost authentic native Korean Hangul
+          score += 300; // Strongest boost for authentic Korean Hangul characters
         }
-        if (hasJapanese(lrc)) {
-          score -= 130; // Strongly penalize Japanese release versions of Korean tracks
-        }
+      }
+
+      // Exact title match bonus
+      if (itemTitleLower === userTitleLower) {
+        score += 60;
       }
 
       // Duration proximity (closer to Spotify duration gets higher score)
       if (duration && item.duration) {
         const diff = Math.abs(duration - item.duration);
-        if (diff < 4) score += 35;
-        else if (diff < 10) score += 15;
-        else if (diff > 35) score -= 25;
+        if (diff < 4) score += 50;
+        else if (diff < 10) score += 25;
+        else if (diff > 35) score -= 40;
       }
 
       // Album title match bonus
       if (album && item.albumName && item.albumName.toLowerCase().includes(album.toLowerCase())) {
-        score += 20;
+        score += 30;
       }
 
       return { item, score };
@@ -216,6 +242,7 @@ async function fetchLyricsForTrack(
           plainLyrics: best.plainLyrics,
         };
         lyricsCache.set(cacheKey, response);
+        lyricsNegativeCache.delete(cacheKey);
         pendingLyricsFetches.delete(cacheKey);
         return response;
       } else if (best.plainLyrics) {
@@ -227,15 +254,17 @@ async function fetchLyricsForTrack(
           plainLyrics: best.plainLyrics,
         };
         lyricsCache.set(cacheKey, response);
+        lyricsNegativeCache.delete(cacheKey);
         pendingLyricsFetches.delete(cacheKey);
         return response;
       }
     }
 
-    lyricsCache.set(cacheKey, null);
+    lyricsNegativeCache.set(cacheKey, Date.now() + 15000);
     pendingLyricsFetches.delete(cacheKey);
     return null;
   } catch {
+    lyricsNegativeCache.set(cacheKey, Date.now() + 10000);
     pendingLyricsFetches.delete(cacheKey);
     return null;
   }

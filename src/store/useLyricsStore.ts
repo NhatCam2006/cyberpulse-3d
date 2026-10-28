@@ -84,11 +84,17 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       if (res.ok) {
         const data = await res.json();
         if (get().currentTrackKey === trackKey) {
+          const isSynced = !!data.synced && Array.isArray(data.lines) && data.lines.length > 0;
+          const lines: LyricLine[] = data.lines || [];
           set({
             isLoading: false,
-            isSynced: !!data.synced && Array.isArray(data.lines) && data.lines.length > 0,
-            lines: data.lines || [],
+            isSynced,
+            lines,
             plainLyrics: data.plainLyrics || null,
+            activeLineIndex: -1,
+            activeLine: null,
+            prevLine: null,
+            nextLine: lines.length > 0 ? lines[0] : null,
           });
           return;
         }
@@ -141,6 +147,8 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
           ? (best + 1 < lines.length ? lines[best + 1] : null)
           : (lines.length > 0 ? lines[0] : null),
       });
+    } else if (best === -1 && get().nextLine === null && lines.length > 0) {
+      set({ nextLine: lines[0] });
     }
   },
 

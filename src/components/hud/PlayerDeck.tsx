@@ -50,6 +50,7 @@ export const PlayerDeck: React.FC = () => {
   const [localArtwork, setLocalArtwork] = useState<string | null>(null);
   const prevVolumeRef = useRef(volume);
   const lastFetchedLiveTrackRef = useRef<string | null>(null);
+  const lastFetchAttemptTimeRef = useRef<number>(0);
 
   // Poll SMTC metadata continuously so desktop/Spotify tracks and lyrics are always synchronized
   useEffect(() => {
@@ -66,10 +67,19 @@ export const PlayerDeck: React.FC = () => {
             setLiveSmtcData(data);
             usePlayerStore.getState().setLiveTrackInfo(data.title, data.artist || 'SPOTIFY');
 
-            // Strictly fetch lyrics once per unique track
+            // Sync lyrics on track change or auto-heal/retry if previous attempt returned empty
             const trackSig = `${data.title} - ${data.artist || ''}`;
-            if (lastFetchedLiveTrackRef.current !== trackSig) {
+            const lyricsStore = useLyricsStore.getState();
+            const isDifferentTrack = lastFetchedLiveTrackRef.current !== trackSig;
+            const now = Date.now();
+            const shouldRetryEmpty =
+              lyricsStore.lines.length === 0 &&
+              !lyricsStore.isLoading &&
+              now - lastFetchAttemptTimeRef.current > 3000;
+
+            if (isDifferentTrack || shouldRetryEmpty) {
               lastFetchedLiveTrackRef.current = trackSig;
+              lastFetchAttemptTimeRef.current = now;
               useLyricsStore.getState().fetchLyrics(data.title, data.artist || '', data.duration, data.album);
             }
           }
@@ -145,16 +155,17 @@ export const PlayerDeck: React.FC = () => {
     const syncLyricsLoop = () => {
       animId = requestAnimationFrame(syncLyricsLoop);
       const VOCAL_ATTACK_LEAD = 0.35; // 350ms lead-in compensates for human vocal attack perception
-      if (liveSmtcData && liveSmtcData.position !== undefined) {
+      const audio = getGlobalAudio();
+
+      if (audio && !audio.paused) {
+        // Local audio track active
+        useLyricsStore.getState().updateActiveLine(audio.currentTime + VOCAL_ATTACK_LEAD);
+      } else if (liveSmtcData && liveSmtcData.position !== undefined) {
+        // Live SMTC / Spotify playback active
         const isPlaying = liveSmtcData.status === 'Playing';
         const elapsed = isPlaying ? (performance.now() - lastSyncTimeRef.current.timestamp) / 1000 : 0;
         const currentPrecise = Math.max(0, lastSyncTimeRef.current.pos + elapsed + VOCAL_ATTACK_LEAD);
         useLyricsStore.getState().updateActiveLine(currentPrecise);
-      } else {
-        const audio = getGlobalAudio();
-        if (audio) {
-          useLyricsStore.getState().updateActiveLine(audio.currentTime + 0.15);
-        }
       }
     };
     animId = requestAnimationFrame(syncLyricsLoop);
