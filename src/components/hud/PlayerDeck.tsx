@@ -20,6 +20,9 @@ export const PlayerDeck: React.FC = () => {
   const currentTime = usePlayerStore(state => state.currentTime);
   const duration = usePlayerStore(state => state.duration);
   const playbackProgress = usePlayerStore(state => state.playbackProgress);
+  const isLiveInput = usePlayerStore(state => state.isLiveInput);
+  const liveInputType = usePlayerStore(state => state.liveInputType);
+  const toggleSystemAudio = usePlayerStore(state => state.toggleSystemAudio);
 
   const togglePlay = usePlayerStore(state => state.togglePlay);
   const playNext = usePlayerStore(state => state.playNext);
@@ -195,24 +198,36 @@ export const PlayerDeck: React.FC = () => {
         
         {/* Bottom-Left: Audio Carrier & Metadata (Matches Left Flank border-l) */}
         <div className="flex flex-col gap-0.5 border-l border-white/20 pl-2.5 pointer-events-auto">
-          <div className="text-[8px] text-neutral-500 uppercase tracking-widest">
-            AUDIO CARRIER // CHANNEL A
+          <div className="flex items-center gap-2">
+            <span className="text-[8px] text-neutral-500 uppercase tracking-widest">
+              AUDIO CARRIER // CHANNEL A
+            </span>
+            {isLiveInput && (
+              <span className="inline-flex items-center gap-1 text-[8px] text-emerald-400 font-mono tracking-widest uppercase">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                LIVE
+              </span>
+            )}
           </div>
           <div className="text-xs font-bold text-white tracking-wider truncate max-w-[240px] md:max-w-xs">
-            {currentTrack ? currentTrack.title.toUpperCase() : 'NO TRACK LOADED'}
+            {isLiveInput
+              ? 'SPOTIFY // LIVE SYSTEM STREAM'
+              : (currentTrack ? currentTrack.title.toUpperCase() : 'NO TRACK LOADED')}
           </div>
           <div className="text-[9.5px] text-neutral-400 tracking-wider truncate max-w-[240px] md:max-w-xs">
-            {currentTrack ? currentTrack.artist.toUpperCase() : 'DRAG & DROP AUDIO FILE'}
+            {isLiveInput
+              ? 'ACTIVE WINDOWS DESKTOP CAPTURE'
+              : (currentTrack ? currentTrack.artist.toUpperCase() : 'DRAG & DROP AUDIO FILE')}
           </div>
         </div>
 
         {/* Bottom-Center: Pure Typographic Audio Controls */}
         <div className="flex flex-col items-center gap-1.5 pointer-events-auto select-none">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {/* Prev */}
             <button
               onClick={playPrev}
-              disabled={tracks.length <= 1}
+              disabled={tracks.length <= 1 || isLiveInput}
               className="text-neutral-400 hover:text-white transition-colors cursor-pointer disabled:opacity-20 text-[10px] tracking-widest font-mono"
               title="Previous Track"
             >
@@ -222,7 +237,8 @@ export const PlayerDeck: React.FC = () => {
             {/* Play / Pause - Minimalist Glass Reticle */}
             <button
               onClick={togglePlay}
-              className="w-7 h-7 rounded-full border border-white/40 hover:border-white bg-white/5 hover:bg-white/15 text-white flex items-center justify-center transition-all cursor-pointer shadow-[0_0_8px_rgba(255,255,255,0.1)] active:scale-95"
+              disabled={isLiveInput}
+              className="w-7 h-7 rounded-full border border-white/40 hover:border-white bg-white/5 hover:bg-white/15 text-white flex items-center justify-center transition-all cursor-pointer shadow-[0_0_8px_rgba(255,255,255,0.1)] active:scale-95 disabled:opacity-30"
               title={isPlaying ? 'Pause' : 'Play'}
             >
               {isPlaying ? (
@@ -235,19 +251,39 @@ export const PlayerDeck: React.FC = () => {
             {/* Next */}
             <button
               onClick={playNext}
-              disabled={tracks.length <= 1}
+              disabled={tracks.length <= 1 || isLiveInput}
               className="text-neutral-400 hover:text-white transition-colors cursor-pointer disabled:opacity-20 text-[10px] tracking-widest font-mono"
               title="Next Track"
             >
               [ ▷| ]
             </button>
+
+            {/* Live Input / Spotify System Audio Button */}
+            <button
+              onClick={toggleSystemAudio}
+              className={`px-2.5 py-1 text-[9px] font-mono tracking-wider border transition-all cursor-pointer flex items-center gap-1.5 ${
+                isLiveInput
+                  ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
+                  : 'border-white/20 hover:border-white/60 text-neutral-300 hover:text-white bg-white/5 hover:bg-white/10'
+              }`}
+              title="Capture Spotify / System Sound (Check 'Share system audio')"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${isLiveInput ? 'bg-emerald-400 animate-ping' : 'bg-neutral-500'}`} />
+              {isLiveInput ? 'SPOTIFY CONNECTED [DISCONNECT]' : '[ ⚡ SPOTIFY / LIVE ]'}
+            </button>
           </div>
 
-          {/* Elapsed / Duration Timestamp */}
+          {/* Elapsed / Duration Timestamp or LIVE STREAMING badge */}
           <div className="text-[9.5px] text-neutral-400 font-mono tracking-[0.2em]">
-            <span className="text-white font-semibold">{formatTime(currentTime)}</span>
-            <span className="text-neutral-600 mx-1.5">//</span>
-            <span>{formatTime(duration)}</span>
+            {isLiveInput ? (
+              <span className="text-emerald-400 font-bold tracking-widest">● LIVE AUDIO STREAMING</span>
+            ) : (
+              <>
+                <span className="text-white font-semibold">{formatTime(currentTime)}</span>
+                <span className="text-neutral-600 mx-1.5">//</span>
+                <span>{formatTime(duration)}</span>
+              </>
+            )}
           </div>
         </div>
 

@@ -77,6 +77,11 @@ export class AudioEngine {
   private audioElement: HTMLAudioElement | null = null;
   private mediaSource: MediaElementAudioSourceNode | null = null;
 
+  // Live Stream / System Audio Input (Spotify / Desktop Capture)
+  public isLiveInputActive: boolean = false;
+  private liveStream: MediaStream | null = null;
+  private liveSourceNode: MediaStreamAudioSourceNode | null = null;
+
   // Procedural 128 BPM Synthwave Demo
   public isDemoPlaying: boolean = false;
   private demoIntervalId: number | null = null;
@@ -479,5 +484,121 @@ export class AudioEngine {
       leadOsc.start(now);
       leadOsc.stop(now + 0.26);
     }
+  }
+
+  /**
+   * Start capturing System Audio (Spotify, YouTube, Desktop Sound)
+   * Uses navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+   */
+  public async startSystemAudioCapture(onEndedCallback?: () => void): Promise<boolean> {
+    try {
+      this.initContext();
+      if (!this.ctx || !this.analyser) return false;
+
+      if (this.isDemoPlaying) {
+        this.stopDemoSynth();
+      }
+
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
+
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        stream.getTracks().forEach((t) => t.stop());
+        throw new Error("No audio track selected! Please check 'Share system audio'.");
+      }
+
+      // Stop video track immediately to save GPU
+      const videoTracks = stream.getVideoTracks();
+      videoTracks.forEach((vt) => vt.stop());
+
+      // Disconnect existing live node
+      if (this.liveSourceNode) {
+        this.liveSourceNode.disconnect();
+        this.liveSourceNode = null;
+      }
+
+      this.liveSourceNode = this.ctx.createMediaStreamSource(new MediaStream(audioTracks));
+      this.liveSourceNode.connect(this.analyser);
+
+      this.liveStream = stream;
+      this.isLiveInputActive = true;
+
+      audioTracks[0].onended = () => {
+        this.stopLiveInput();
+        if (onEndedCallback) onEndedCallback();
+      };
+
+      return true;
+    } catch (err) {
+      console.warn("System audio capture failed or canceled:", err);
+      this.stopLiveInput();
+      return false;
+    }
+  }
+
+  /**
+   * Fallback: Start capturing Microphone / Stereo Mix
+   */
+  public async startMicAudioCapture(onEndedCallback?: () => void): Promise<boolean> {
+    try {
+      this.initContext();
+      if (!this.ctx || !this.analyser) return false;
+
+      if (this.isDemoPlaying) {
+        this.stopDemoSynth();
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
+
+      if (this.liveSourceNode) {
+        this.liveSourceNode.disconnect();
+        this.liveSourceNode = null;
+      }
+
+      this.liveSourceNode = this.ctx.createMediaStreamSource(stream);
+      this.liveSourceNode.connect(this.analyser);
+
+      this.liveStream = stream;
+      this.isLiveInputActive = true;
+
+      stream.getAudioTracks()[0].onended = () => {
+        this.stopLiveInput();
+        if (onEndedCallback) onEndedCallback();
+      };
+
+      return true;
+    } catch (err) {
+      console.warn("Mic audio capture failed or canceled:", err);
+      this.stopLiveInput();
+      return false;
+    }
+  }
+
+  /**
+   * Stop live audio capture
+   */
+  public stopLiveInput(): void {
+    if (this.liveSourceNode) {
+      this.liveSourceNode.disconnect();
+      this.liveSourceNode = null;
+    }
+    if (this.liveStream) {
+      this.liveStream.getTracks().forEach((t) => t.stop());
+      this.liveStream = null;
+    }
+    this.isLiveInputActive = false;
   }
 }

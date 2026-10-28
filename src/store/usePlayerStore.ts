@@ -57,6 +57,12 @@ export interface PlayerState {
   // Active object URL for memory safety
   activeAudioUrl: string | null;
 
+  // Live Audio Input (Spotify / System / Mic)
+  isLiveInput: boolean;
+  liveInputType: 'system' | 'mic' | null;
+  toggleSystemAudio: () => Promise<boolean>;
+  toggleMicAudio: () => Promise<boolean>;
+
   // Visualizer settings
   activeTab: ActiveTab;
   colorTheme: ColorTheme;
@@ -149,6 +155,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   playbackProgress: 0,
   activeAudioUrl: null,
 
+  isLiveInput: false,
+  liveInputType: null,
   activeTab: 'system',
   colorTheme: 'cyan-magenta',
   cameraMode: 'vista',
@@ -382,6 +390,63 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   updateTime: (currentTime: number, duration: number) => {
     const progress = duration > 0 ? currentTime / duration : 0;
     set({ currentTime, duration, playbackProgress: progress });
+  },
+
+  toggleSystemAudio: async () => {
+    const engine = AudioEngine.getInstance();
+    const { isLiveInput, isPlaying, isDemoSynth } = get();
+
+    if (isLiveInput) {
+      engine.stopLiveInput();
+      set({ isLiveInput: false, liveInputType: null });
+      return false;
+    } else {
+      // Pause local audio or demo synth
+      if (isPlaying) {
+        if (isDemoSynth) {
+          engine.stopDemoSynth();
+          set({ isDemoSynth: false });
+        } else {
+          getGlobalAudio().pause();
+        }
+        set({ isPlaying: false });
+      }
+
+      const success = await engine.startSystemAudioCapture(() => {
+        set({ isLiveInput: false, liveInputType: null });
+      });
+
+      set({ isLiveInput: success, liveInputType: success ? 'system' : null });
+      return success;
+    }
+  },
+
+  toggleMicAudio: async () => {
+    const engine = AudioEngine.getInstance();
+    const { isLiveInput, isPlaying, isDemoSynth } = get();
+
+    if (isLiveInput) {
+      engine.stopLiveInput();
+      set({ isLiveInput: false, liveInputType: null });
+      return false;
+    } else {
+      if (isPlaying) {
+        if (isDemoSynth) {
+          engine.stopDemoSynth();
+          set({ isDemoSynth: false });
+        } else {
+          getGlobalAudio().pause();
+        }
+        set({ isPlaying: false });
+      }
+
+      const success = await engine.startMicAudioCapture(() => {
+        set({ isLiveInput: false, liveInputType: null });
+      });
+
+      set({ isLiveInput: success, liveInputType: success ? 'mic' : null });
+      return success;
+    }
   },
 
   handleTrackEnd: () => {
